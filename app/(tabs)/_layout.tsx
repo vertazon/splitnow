@@ -1,35 +1,102 @@
 import { Tabs } from 'expo-router';
-import React from 'react';
+import { Platform, Text, View, StyleSheet } from 'react-native';
+import { colors } from '@/constants/colors';
+import { fonts } from '@/constants/typography';
 
-import { HapticTab } from '@/components/haptic-tab';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+function TabIcon({ emoji, label, focused }: { emoji: string; label: string; focused: boolean }) {
+  return (
+    <View style={styles.tabItem}>
+      <Text style={styles.tabEmoji}>{emoji}</Text>
+      <Text
+        style={[styles.tabLabel, focused && styles.tabLabelActive]}
+        numberOfLines={1}
+      >
+        {label}
+      </Text>
+      {focused && <View style={styles.pip} />}
+    </View>
+  );
+}
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
-
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
         headerShown: false,
-        tabBarButton: HapticTab,
-      }}>
+        tabBarStyle: {
+          backgroundColor: 'rgba(12,12,12,0.97)',
+          borderTopColor: colors.border,
+          borderTopWidth: 1,
+          height: Platform.OS === 'ios' ? 84 : 64,
+          paddingTop: 10,
+          paddingBottom: Platform.OS === 'ios' ? 26 : 10,
+          position: 'absolute',
+        },
+        tabBarShowLabel: false,
+      }}
+    >
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Home',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
+          tabBarIcon: ({ focused }) => (
+            <TabIcon emoji="🏠" label="HOME" focused={focused} />
+          ),
         }}
       />
       <Tabs.Screen
-        name="explore"
+        name="add"
         options={{
-          title: 'Explore',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
+          tabBarIcon: ({ focused }) => (
+            <TabIcon emoji="➕" label="ADD" focused={focused} />
+          ),
         }}
       />
+      <Tabs.Screen
+        name="settle"
+        options={{
+          tabBarIcon: ({ focused }) => (
+            <TabIcon emoji="💸" label="SETTLE" focused={focused} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="insights"
+        options={{
+          tabBarIcon: ({ focused }) => (
+            <TabIcon emoji="📊" label="INSIGHTS" focused={focused} />
+          ),
+        }}
+      />
+      <Tabs.Screen name="explore" options={{ href: null }} />
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  tabItem: {
+    alignItems: 'center',
+    gap: 3,
+    minWidth: 56,
+  },
+  tabEmoji: {
+    fontSize: 20,
+    lineHeight: 24,
+  },
+  tabLabel: {
+    fontFamily: fonts.dmSansSemiBold,
+    fontSize: 9,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    color: colors.text3,
+  },
+  tabLabelActive: {
+    color: colors.accent,
+  },
+  pip: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.accent,
+    marginTop: 2,
+  },
+});

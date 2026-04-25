@@ -45,29 +45,31 @@ It should NOT feel:
 
 ## Typography
 
-### Font Pairing
+### Font
 | Role | Font | Weight | Usage |
 |------|------|--------|-------|
-| Display | Syne | 800 | Screen titles, large numbers, logo |
-| Body | DM Sans | 400–600 | All body text, labels, metadata |
+| Everything | Plus Jakarta Sans | 400–800 | All text — display, numbers, body, labels |
+
+Single font stack. No pairing needed. Plus Jakarta Sans handles all weights cleanly without visual noise.
 
 ### Type Scale
 | Element | Size | Weight | Font |
 |---------|------|--------|------|
-| Screen title | 24–26px | 800 | Syne |
-| Balance amount | 40–44px | 800 | Syne |
-| Large input | 52–60px | 800 | Syne |
-| Section label | 10px | 700 | DM Sans, uppercase, 1px tracking |
-| Body / row title | 13–14px | 600 | DM Sans |
-| Metadata / date | 11px | 400 | DM Sans |
-| Chip label | 12–13px | 500–600 | DM Sans |
-| CTA button | 15–16px | 800 | Syne |
+| Screen title | 24–26px | 800 | Plus Jakarta Sans |
+| Balance amount | 40–44px | 800 | Plus Jakarta Sans |
+| Large input | 52–60px | 800 | Plus Jakarta Sans |
+| Section label | 10px | 700 | Plus Jakarta Sans, uppercase, 1px tracking |
+| Body / row title | 13–14px | 600 | Plus Jakarta Sans |
+| Metadata / date | 11px | 400 | Plus Jakarta Sans |
+| Chip label | 12–13px | 500–600 | Plus Jakarta Sans |
+| CTA button | 15–16px | 700 | Plus Jakarta Sans |
 
 ### Rules
-- Numbers use Syne for impact — they're the hero of every screen
+- Numbers use weight 800 for impact — they're the hero of every screen
 - Never use less than 10px font size
 - Section labels: always uppercase, letter-spacing 0.8–1px, muted color
-- Balance amounts: letter-spacing -2px for large figures (tighter = more premium)
+- Balance amounts: letter-spacing -1.5px for large figures (tighter = more premium)
+- Avoid Syne — does not match the clarity-first philosophy of SplitNow
 
 ---
 
@@ -98,7 +100,7 @@ Border radius: 16–18px
 Height: 52–56px
 Background: #00D49A
 Color: #000000
-Font: Syne 800, 15–16px
+Font: Plus Jakarta Sans 700, 15–16px
 Box shadow: 0 6px 24px rgba(0,212,154,0.28)
 Active: scale(0.97), reduced shadow
 ```
@@ -108,7 +110,7 @@ Active: scale(0.97), reduced shadow
 Background: #1C1C1C
 Border: 1.5px solid rgba(255,255,255,0.11)
 Border radius: 12–14px
-Font: Syne 800, 18–20px
+Font: Plus Jakarta Sans 800, 18–20px
 Focus: border-color #00D49A
 ```
 
