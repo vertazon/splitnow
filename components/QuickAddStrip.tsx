@@ -18,13 +18,16 @@ import Animated, {
 import { useEffect } from 'react';
 import { colors } from '@/constants/colors';
 import { fonts } from '@/constants/typography';
-import { categories } from '@/constants/sampleData';
+import { categories, members } from '@/constants/sampleData';
+import { useAppContext } from '@/context/AppContext';
+import { sanitizeAmountInput, parseAmount } from '@/constants/amountUtils';
 
 interface QuickAddStripProps {
   onAdd: (amount: string) => void;
 }
 
 export function QuickAddStrip({ onAdd }: QuickAddStripProps) {
+  const { addExpense } = useAppContext();
   const [amount, setAmount] = useState('540');
   const [catIdx, setCatIdx] = useState(0);
   const [selectedPeople, setSelectedPeople] = useState<Set<string>>(
@@ -78,7 +81,28 @@ export function QuickAddStrip({ onAdd }: QuickAddStripProps) {
       withTiming(0.88, { duration: 100 }),
       withTiming(1, { duration: 120 })
     );
-    onAdd(amount || '540');
+    const cat = categories[catIdx];
+    const finalAmount = parseAmount(amount) || 540;
+    // map display names → member ids
+    const splitMemberIds = ['aryan', ...people
+      .filter(name => selectedPeople.has(name))
+      .map(name => members.find(m => m.name === name)?.id)
+      .filter((id): id is string => !!id),
+    ];
+    addExpense({
+      id: Date.now().toString(),
+      emoji: cat.emoji,
+      title: cat.label,
+      amount: finalAmount,
+      date: 'Just now',
+      people: people.filter(n => selectedPeople.has(n)).join(', ') || undefined,
+      category: cat.id,
+      paidBy: 'aryan',
+      splitWith: splitMemberIds,
+      addedBy: 'aryan',
+      createdAt: new Date().toISOString(),
+    });
+    onAdd(String(finalAmount));
   };
 
   const people = ['Raj', 'Priya', 'Arjun'];
@@ -102,8 +126,8 @@ export function QuickAddStrip({ onAdd }: QuickAddStripProps) {
             <TextInput
               style={styles.amountInput}
               value={amount}
-              onChangeText={setAmount}
-              keyboardType="numeric"
+              onChangeText={t => setAmount(sanitizeAmountInput(t))}
+              keyboardType="decimal-pad"
               placeholderTextColor={colors.text3}
               selectionColor={colors.accent}
             />

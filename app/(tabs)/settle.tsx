@@ -17,7 +17,8 @@ import Animated, {
 } from 'react-native-reanimated';
 import { colors, avatarColors } from '@/constants/colors';
 import { fonts } from '@/constants/typography';
-import { members, balances, formatAmount } from '@/constants/sampleData';
+import { members, balances } from '@/constants/sampleData';
+import { formatAmount } from '@/constants/amountUtils';
 import { ToastNotification } from '@/components/ToastNotification';
 
 const owedBalances = balances.filter(b => b.amount < 0);

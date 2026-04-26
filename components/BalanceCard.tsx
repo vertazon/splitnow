@@ -3,7 +3,7 @@ import { colors } from '@/constants/colors';
 import { avatarColors } from '@/constants/colors';
 import { fonts } from '@/constants/typography';
 import type { Balance, Member } from '@/constants/sampleData';
-import { formatAmount } from '@/constants/sampleData';
+import { formatAmount } from '@/constants/amountUtils';
 
 interface BalanceRowProps {
   member: Member;

@@ -1,38 +1,26 @@
 import { useState, useRef, useCallback } from 'react';
 import {
-  View,
-  Text,
-  TextInput,
-  ScrollView,
-  StyleSheet,
-  Platform,
-  TouchableOpacity,
-  useWindowDimensions,
+  View, Text, TextInput, ScrollView, StyleSheet,
+  Platform, TouchableOpacity, useWindowDimensions,
 } from 'react-native';
-
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withTiming,
-  withSequence,
+  useSharedValue, useAnimatedStyle, withTiming, withSequence,
 } from 'react-native-reanimated';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { colors } from '@/constants/colors';
 import { fonts } from '@/constants/typography';
 import { categories, members } from '@/constants/sampleData';
-import type { Expense } from '@/constants/sampleData';
 import { useAppContext } from '@/context/AppContext';
 import { CategoryChip } from '@/components/CategoryChip';
 import { PersonChip } from '@/components/PersonChip';
-import { CategoryPickerModal } from '@/components/CategoryPickerModal';
 import { ToastNotification } from '@/components/ToastNotification';
-import { sanitizeAmountInput, isValidAmount, parseAmount, formatAmount } from '@/constants/amountUtils';
+import { CategoryPickerModal } from '@/components/CategoryPickerModal';
+import { sanitizeAmountInput, isValidAmount, parseAmount } from '@/constants/amountUtils';
 
 const splitPeople = members.filter(m => m.id !== 'aryan');
 const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
 
-// Steps: ≤4 digits → 48, 5–6 → 40, 7–8 → 32, 9+ → 26
 function amountFontSize(len: number) {
   if (len > 8) return 26;
   if (len > 6) return 32;
@@ -40,18 +28,28 @@ function amountFontSize(len: number) {
   return 48;
 }
 
-export default function AddScreen() {
+export default function EditExpenseScreen() {
+  const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { addExpense } = useAppContext();
+  const { expenses, updateExpense } = useAppContext();
   const { width } = useWindowDimensions();
-  // 3-column grid: (screenWidth - 44 screen padding - 16 two gaps) / 3
   const chipWidth = (width - 44 - 16) / 3;
-  const [amount, setAmount] = useState('');
-  const [title, setTitle] = useState('');
-  const [selectedCatId, setSelectedCatId] = useState(categories[0].id);
+
+  // Derive expense once — do NOT move below hooks
+  const expense = expenses.find(e => e.id === id);
+
+  // ── All hooks must be unconditional (before any early return) ──
+  // Lazy initialisers run once on mount and safely handle expense being undefined.
+  const [amount, setAmount] = useState(() =>
+    expense ? String(expense.amount) : ''
+  );
+  const [title, setTitle] = useState(() => expense?.title ?? '');
+  const [selectedCatId, setSelectedCatId] = useState(() =>
+    expense?.category ?? categories[0].id
+  );
   const [catPickerOpen, setCatPickerOpen] = useState(false);
-  const [selectedPeople, setSelectedPeople] = useState<Set<string>>(
-    new Set(['raj', 'priya'])
+  const [selectedPeople, setSelectedPeople] = useState<Set<string>>(() =>
+    new Set((expense?.splitWith ?? []).filter(mid => mid !== 'aryan'))
   );
   const [amountError, setAmountError] = useState('');
   const [titleError, setTitleError] = useState('');
@@ -59,22 +57,6 @@ export default function AddScreen() {
   const [toastVisible, setToastVisible] = useState(false);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const ctaScale = useSharedValue(1);
-
-  const showToast = useCallback((msg: string) => {
-    setToast(msg);
-    setToastVisible(true);
-    if (toastTimer.current) clearTimeout(toastTimer.current);
-    toastTimer.current = setTimeout(() => setToastVisible(false), 2400);
-  }, []);
-
-  const togglePerson = (id: string) => {
-    setSelectedPeople(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
 
   const normalizedAmount = amount.endsWith('.') ? amount.slice(0, -1) : amount;
   const parsedAmount = parseAmount(normalizedAmount);
@@ -89,21 +71,24 @@ export default function AddScreen() {
     transform: [{ scale: ctaScale.value }],
   }));
 
-  const resetForm = useCallback(() => {
-    setAmount('');
-    setTitle('');
-    setSelectedCatId(categories[0].id);
-    setSelectedPeople(new Set(['raj', 'priya']));
-    setAmountError('');
-    setTitleError('');
+  const showToast = useCallback((msg: string) => {
+    setToast(msg);
+    setToastVisible(true);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToastVisible(false), 2400);
   }, []);
 
-  const handleCancel = useCallback(() => {
-    resetForm();
-    router.navigate('/');
-  }, [resetForm, router]);
+  const togglePerson = useCallback((personId: string) => {
+    setSelectedPeople(prev => {
+      const next = new Set(prev);
+      if (next.has(personId)) next.delete(personId);
+      else next.add(personId);
+      return next;
+    });
+  }, []);
 
-  const handleAdd = useCallback(() => {
+  const handleSave = useCallback(() => {
+    if (!expense) return;
     let hasError = false;
     if (!isValidAmount(normalizedAmount)) {
       setAmountError('Enter a valid amount');
@@ -114,39 +99,38 @@ export default function AddScreen() {
       hasError = true;
     }
     if (hasError) return;
-
     ctaScale.value = withSequence(
       withTiming(0.97, { duration: 100 }),
-      withTiming(1, { duration: 120 })
+      withTiming(1,    { duration: 120 })
     );
-
     const cat = categories.find(c => c.id === selectedCatId) ?? categories[0];
-    const splitMemberIds = ['aryan', ...splitPeople
-      .filter(m => selectedPeople.has(m.id))
-      .map(m => m.id)];
-    const peopleNames = splitMemberIds
-      .filter(id => id !== 'aryan')
-      .map(id => splitPeople.find(m => m.id === id)?.name ?? '')
-      .filter(Boolean);
-
-    const newExpense: Expense = {
-      id: Date.now().toString(),
+    const splitMemberIds = [
+      'aryan',
+      ...splitPeople.filter(m => selectedPeople.has(m.id)).map(m => m.id),
+    ];
+    updateExpense(expense.id, {
       emoji: cat.emoji,
       title: title.trim(),
       amount: parsedAmount,
-      date: 'Just now',
-      people: peopleNames.length > 0 ? peopleNames.join(', ') : undefined,
       category: cat.id,
-      paidBy: 'aryan',
       splitWith: splitMemberIds,
-      addedBy: 'aryan',
-      createdAt: new Date().toISOString(),
-    };
+      updatedAt: new Date().toISOString(),
+    });
+    showToast('Changes saved');
+    setTimeout(() => router.back(), 700);
+  }, [expense, normalizedAmount, parsedAmount, title, selectedCatId, selectedPeople, updateExpense, showToast, router, ctaScale]);
 
-    addExpense(newExpense);
-    showToast(`✓ ${formatAmount(parsedAmount)} added!`);
-    resetForm();
-  }, [normalizedAmount, parsedAmount, title, selectedCatId, selectedPeople, addExpense, showToast, resetForm]);
+  // ── Early return after all hooks ──
+  if (!expense) {
+    return (
+      <SafeAreaView style={styles.safe} edges={['top']}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+          <Text style={styles.backText}>← Back</Text>
+        </TouchableOpacity>
+        <Text style={styles.notFound}>Expense not found</Text>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -158,15 +142,16 @@ export default function AddScreen() {
       >
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.title}>Add Expense</Text>
-          <TouchableOpacity style={styles.cancelBtn} onPress={handleCancel}>
-            <Text style={styles.cancelText}>Cancel</Text>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+            <Text style={styles.backText}>← Back</Text>
           </TouchableOpacity>
+          <Text style={styles.screenTitle}>Edit Expense</Text>
+          <View style={{ width: 60 }} />
         </View>
 
         {/* Amount */}
         <View style={styles.amountSection}>
-          <Text style={styles.amountLabel}>AMOUNT</Text>
+          <Text style={styles.sectionLabel}>AMOUNT</Text>
           <View style={styles.amountBox}>
             <Text style={[styles.rupee, { fontSize: fontSize * 0.65, lineHeight: fontSize * 1.1 }]}>
               ₹
@@ -185,7 +170,7 @@ export default function AddScreen() {
           {!!amountError && <Text style={styles.fieldError}>{amountError}</Text>}
         </View>
 
-        {/* Title / Note */}
+        {/* Title */}
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>TITLE *</Text>
           <View style={[styles.noteBox, !!titleError && styles.inputError]}>
@@ -216,7 +201,6 @@ export default function AddScreen() {
                 style={{ width: chipWidth }}
               />
             ))}
-            {/* More chip — shows selected category name if it's from the extended list */}
             {(() => {
               const isMoreSel = !categories.slice(0, 9).find(c => c.id === selectedCatId);
               const moreCat = isMoreSel ? categories.find(c => c.id === selectedCatId) : null;
@@ -234,7 +218,7 @@ export default function AddScreen() {
           </View>
         </View>
 
-        {/* Split With */}
+        {/* Split with */}
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>SPLIT WITH</Text>
           <View style={styles.peopleRow}>
@@ -252,13 +236,13 @@ export default function AddScreen() {
           <Text style={styles.splitCalc}>{splitText}</Text>
         </View>
 
-        {/* CTA */}
+        {/* Save CTA */}
         <AnimatedTouchable
           style={[styles.cta, ctaStyle]}
-          onPress={handleAdd}
+          onPress={handleSave}
           activeOpacity={0.85}
         >
-          <Text style={styles.ctaText}>Add Expense →</Text>
+          <Text style={styles.ctaText}>Save Changes →</Text>
         </AnimatedTouchable>
       </ScrollView>
 
@@ -274,114 +258,61 @@ export default function AddScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: {
-    flex: 1,
-    backgroundColor: colors.bg,
-  },
-  scroll: {
-    flex: 1,
-  },
+  safe: { flex: 1, backgroundColor: colors.bg },
+  scroll: { flex: 1 },
   content: {
     paddingHorizontal: 22,
-    paddingTop: 20,
+    paddingTop: 16,
     paddingBottom: Platform.OS === 'ios' ? 110 : 90,
+  },
+  notFound: {
+    fontFamily: fonts.dmSans, fontSize: 14, color: colors.text2,
+    textAlign: 'center', marginTop: 60, paddingHorizontal: 22,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 24,
+    marginBottom: 28,
   },
-  title: {
-    fontFamily: fonts.syne,
-    fontSize: 18,
-    fontWeight: '800',
-    color: colors.text,
+  backBtn: { paddingVertical: 6, paddingRight: 12 },
+  backText: {
+    fontFamily: fonts.dmSansSemiBold, fontSize: 14,
+    fontWeight: '600', color: colors.accent,
   },
-  cancelBtn: {
-    backgroundColor: colors.cardElevated,
-    borderWidth: 1,
-    borderColor: colors.borderEmphasis,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    minHeight: 32,
-    justifyContent: 'center',
+  screenTitle: {
+    fontFamily: fonts.syne, fontSize: 17,
+    fontWeight: '800', color: colors.text,
   },
-  cancelText: {
-    fontFamily: fonts.dmSansSemiBold,
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.text2,
-  },
-  amountSection: {
-    alignItems: 'center',
-    marginBottom: 22,
-  },
-  amountLabel: {
-    fontFamily: fonts.dmSansSemiBold,
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-    color: colors.text2,
-    marginBottom: 10,
+  amountSection: { alignItems: 'center', marginBottom: 22 },
+  sectionLabel: {
+    fontFamily: fonts.dmSansSemiBold, fontSize: 10, fontWeight: '700',
+    letterSpacing: 1, textTransform: 'uppercase', color: colors.text2, marginBottom: 8,
   },
   amountBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: 'row', alignItems: 'center',
     backgroundColor: colors.cardElevated,
-    borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.11)',
-    borderRadius: 20,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    gap: 2,
-    alignSelf: 'stretch',
+    borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.11)',
+    borderRadius: 20, paddingHorizontal: 20, paddingVertical: 10,
+    gap: 2, alignSelf: 'stretch',
   },
   rupee: {
-    fontFamily: fonts.syne,
-    fontWeight: '800',
-    color: colors.text2,
-    flexShrink: 0,
+    fontFamily: fonts.syne, fontWeight: '800',
+    color: colors.text2, flexShrink: 0,
   },
   amountInput: {
-    fontFamily: fonts.syne,
-    fontWeight: '800',
-    color: colors.text,
-    flex: 1,
-    padding: 0,
-    margin: 0,
-    textAlign: 'center',
-    minWidth: 0,
+    fontFamily: fonts.syne, fontWeight: '800', color: colors.text,
+    flex: 1, padding: 0, margin: 0, textAlign: 'center', minWidth: 0,
   },
-  section: {
-    marginBottom: 20,
-  },
-  sectionLabel: {
-    fontFamily: fonts.dmSansSemiBold,
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-    color: colors.text2,
-    marginBottom: 8,
-  },
+  section: { marginBottom: 20 },
   noteBox: {
     backgroundColor: colors.cardElevated,
-    borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.11)',
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.11)',
+    borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12,
   },
   noteInput: {
-    fontFamily: fonts.dmSansSemiBold,
-    fontSize: 14,
-    fontWeight: '500',
-    color: colors.text,
-    padding: 0,
-    margin: 0,
+    fontFamily: fonts.dmSansSemiBold, fontSize: 14,
+    fontWeight: '500', color: colors.text, padding: 0, margin: 0,
   },
   moreCatChip: {
     alignItems: 'center',
@@ -418,39 +349,19 @@ const styles = StyleSheet.create({
   inputError: {
     borderColor: colors.danger,
   },
-  catGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  peopleRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
+  catGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  peopleRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   splitCalc: {
-    fontFamily: fonts.dmSansMedium,
-    fontSize: 12,
-    fontWeight: '500',
-    color: colors.text2,
-    marginTop: 10,
+    fontFamily: fonts.dmSansMedium, fontSize: 12,
+    fontWeight: '500', color: colors.text2, marginTop: 10,
   },
   cta: {
-    backgroundColor: colors.accent,
-    borderRadius: 16,
-    height: 52,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: colors.accent,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.28,
-    shadowRadius: 16,
-    elevation: 10,
+    backgroundColor: colors.accent, borderRadius: 16, height: 52,
+    alignItems: 'center', justifyContent: 'center',
+    shadowColor: colors.accent, shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.28, shadowRadius: 16, elevation: 10,
   },
   ctaText: {
-    fontFamily: fonts.syne,
-    fontSize: 15,
-    fontWeight: '800',
-    color: '#000',
+    fontFamily: fonts.syne, fontSize: 15, fontWeight: '800', color: '#000',
   },
 });

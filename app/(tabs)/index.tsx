@@ -9,15 +9,239 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { colors, avatarColors } from '@/constants/colors';
 import { fonts } from '@/constants/typography';
-import { members, balances, formatAmount } from '@/constants/sampleData';
+import { members, balances, categories } from '@/constants/sampleData';
+import { formatAmount } from '@/constants/amountUtils';
+import type { Expense } from '@/constants/sampleData';
 import { useAppContext } from '@/context/AppContext';
 import { QuickAddStrip } from '@/components/QuickAddStrip';
 import { BalanceRow } from '@/components/BalanceCard';
 import { ToastNotification } from '@/components/ToastNotification';
 
+// ─── Mini avatar strip ────────────────────────────────────────────────────────
+
+function MiniAvatars({ memberIds, maxShow = 3 }: { memberIds: string[]; maxShow?: number }) {
+  const visible = memberIds.slice(0, maxShow);
+  const overflow = memberIds.length - maxShow;
+  return (
+    <View style={miniStyles.row}>
+      {visible.map((mid, i) => {
+        const m = members.find(x => x.id === mid);
+        if (!m) return null;
+        return (
+          <View
+            key={mid}
+            style={[
+              miniStyles.dot,
+              { backgroundColor: avatarColors[m.color].bg, marginLeft: i === 0 ? 0 : -5 },
+            ]}
+          >
+            <Text style={[miniStyles.text, { color: avatarColors[m.color].text }]}>
+              {m.initials}
+            </Text>
+          </View>
+        );
+      })}
+      {overflow > 0 && (
+        <View style={[miniStyles.dot, { backgroundColor: colors.cardElevated, marginLeft: -5 }]}>
+          <Text style={[miniStyles.text, { color: colors.text2 }]}>+{overflow}</Text>
+        </View>
+      )}
+    </View>
+  );
+}
+
+const miniStyles = StyleSheet.create({
+  row: { flexDirection: 'row', alignItems: 'center' },
+  dot: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.card,
+  },
+  text: {
+    fontFamily: fonts.dmSansSemiBold,
+    fontSize: 7,
+    fontWeight: '700',
+  },
+});
+
+// ─── Net balance logic ────────────────────────────────────────────────────────
+
+type NetType = 'lent' | 'owed' | 'received' | 'personal';
+
+function getNetBalance(exp: Expense): { type: NetType; amount: number } {
+  if (exp.isIncome) return { type: 'received', amount: exp.amount };
+  const split = exp.splitWith;
+  if (!split || split.length <= 1) return { type: 'personal', amount: exp.amount };
+  const perPerson = parseFloat((exp.amount / split.length).toFixed(2));
+  if (exp.paidBy === 'aryan') return { type: 'lent', amount: exp.amount - perPerson };
+  return { type: 'owed', amount: perPerson };
+}
+
+const NET_COLORS: Record<NetType, { main: string; dim: string }> = {
+  lent:     { main: colors.accent, dim: 'rgba(0,212,154,0.55)'  },
+  received: { main: colors.accent, dim: 'rgba(0,212,154,0.55)'  },
+  owed:     { main: colors.danger, dim: 'rgba(255,89,89,0.55)'  },
+  personal: { main: colors.text,   dim: colors.text3            },
+};
+
+const NET_LABELS: Record<NetType, string> = {
+  lent:     'you lent',
+  received: 'received',
+  owed:     'you owe',
+  personal: '',
+};
+
+// ─── Activity row ─────────────────────────────────────────────────────────────
+
+function ActivityRow({ exp, onPress }: { exp: Expense; onPress: () => void }) {
+  const cat = exp.category ? categories.find(c => c.id === exp.category) : null;
+  const net = getNetBalance(exp);
+  const netColor = NET_COLORS[net.type];
+  const isPersonal = net.type === 'personal';
+
+  const payerMember = exp.paidBy ? members.find(m => m.id === exp.paidBy) : null;
+  const payerLabel = exp.paidBy === 'aryan'
+    ? 'You'
+    : (payerMember?.name ?? '');
+
+  return (
+    <TouchableOpacity onPress={onPress} activeOpacity={0.65}>
+      <View style={rowStyles.row}>
+        {/* Icon */}
+        <View style={rowStyles.iconBox}>
+          <Text style={{ fontSize: 18 }}>{exp.emoji}</Text>
+        </View>
+
+        {/* Info */}
+        <View style={rowStyles.info}>
+          <Text style={rowStyles.title} numberOfLines={1}>{exp.title}</Text>
+
+          {/* Line 2: date · category */}
+          <View style={rowStyles.meta}>
+            <Text style={rowStyles.date}>{exp.date}</Text>
+            {cat && <Text style={rowStyles.catLabel}> · {cat.label}</Text>}
+          </View>
+
+          {/* Line 3: who paid · total · avatars (shared expenses only) */}
+          {!isPersonal && exp.splitWith && exp.splitWith.length > 1 && (
+            <View style={rowStyles.splitMeta}>
+              <Text style={rowStyles.payerText} numberOfLines={1}>
+                {payerLabel} paid {formatAmount(exp.amount)}
+              </Text>
+              <MiniAvatars memberIds={exp.splitWith} maxShow={3} />
+            </View>
+          )}
+        </View>
+
+        {/* Net balance — hero of the right column */}
+        <View style={rowStyles.right}>
+          <Text style={[rowStyles.netAmount, { color: netColor.main }]}>
+            {net.type === 'owed' ? '−' : net.type !== 'personal' ? '+' : ''}
+            {formatAmount(net.amount)}
+          </Text>
+          {NET_LABELS[net.type] !== '' && (
+            <Text style={[rowStyles.netLabel, { color: netColor.dim }]}>
+              {NET_LABELS[net.type]}
+            </Text>
+          )}
+        </View>
+
+        {/* Chevron */}
+        <Text style={rowStyles.chevron}>›</Text>
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+const rowStyles = StyleSheet.create({
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    gap: 10,
+  },
+  iconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 13,
+    backgroundColor: colors.cardElevated,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  info: {
+    flex: 1,
+    minWidth: 0,
+  },
+  title: {
+    fontFamily: fonts.dmSansSemiBold,
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 3,
+  },
+  meta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  date: {
+    fontFamily: fonts.dmSans,
+    fontSize: 11,
+    color: colors.text2,
+  },
+  catLabel: {
+    fontFamily: fonts.dmSans,
+    fontSize: 11,
+    color: colors.text3,
+  },
+  splitMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 5,
+  },
+  payerText: {
+    fontFamily: fonts.dmSans,
+    fontSize: 11,
+    color: colors.text3,
+    flexShrink: 1,
+  },
+  right: {
+    alignItems: 'flex-end',
+    flexShrink: 0,
+    minWidth: 68,
+  },
+  netAmount: {
+    fontFamily: fonts.syne,
+    fontSize: 14,
+    fontWeight: '800',
+    marginBottom: 2,
+  },
+  netLabel: {
+    fontFamily: fonts.dmSans,
+    fontSize: 10,
+    fontWeight: '400',
+  },
+  chevron: {
+    fontSize: 18,
+    color: colors.text3,
+    flexShrink: 0,
+    marginLeft: -4,
+  },
+});
+
+// ─── Screen ───────────────────────────────────────────────────────────────────
+
 export default function HomeScreen() {
+  const router = useRouter();
   const { expenses } = useAppContext();
   const [toast, setToast] = useState('');
   const [toastVisible, setToastVisible] = useState(false);
@@ -69,7 +293,7 @@ export default function HomeScreen() {
         <View style={[styles.card, styles.balanceCard]}>
           <Text style={styles.sectionLabel}>NET BALANCE</Text>
           <Text style={[styles.balanceAmount, isOwed ? styles.accent : styles.danger]}>
-            {isOwed ? '+' : '−'}₹{Math.abs(netAmt).toLocaleString('en-IN')}
+            {isOwed ? '+' : '−'}{formatAmount(Math.abs(netAmt))}
           </Text>
           <Text style={styles.balanceSub}>
             to 2 people · <Text style={{ color: 'rgba(255,89,89,0.6)' }}>3 pending</Text>
@@ -103,18 +327,10 @@ export default function HomeScreen() {
           <View style={[styles.card, { padding: 0, paddingVertical: 4 }]}>
             {expenses.slice(0, 5).map((exp, i, arr) => (
               <View key={exp.id}>
-                <View style={styles.expenseRow}>
-                  <View style={styles.expenseIcon}>
-                    <Text style={{ fontSize: 16 }}>{exp.emoji}</Text>
-                  </View>
-                  <View style={styles.expenseInfo}>
-                    <Text style={styles.expenseTitle}>{exp.title}</Text>
-                    <Text style={[styles.expenseSub, exp.isIncome && { color: colors.accent }]}>
-                      {exp.people ? `${exp.people} · ` : ''}{exp.date}
-                    </Text>
-                  </View>
-                  <Text style={styles.expenseAmount}>{formatAmount(exp.amount)}</Text>
-                </View>
+                <ActivityRow
+                  exp={exp}
+                  onPress={() => router.push(`/expense/${exp.id}` as never)}
+                />
                 {i < arr.length - 1 && <View style={styles.divider} />}
               </View>
             ))}
@@ -211,43 +427,6 @@ const styles = StyleSheet.create({
   divider: {
     height: 1,
     backgroundColor: colors.border,
-    marginHorizontal: 16,
-  },
-  expenseRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    gap: 12,
-  },
-  expenseIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
-    backgroundColor: colors.cardElevated,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-  },
-  expenseInfo: {
-    flex: 1,
-  },
-  expenseTitle: {
-    fontFamily: fonts.dmSansSemiBold,
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  expenseSub: {
-    fontFamily: fonts.dmSans,
-    fontSize: 11,
-    color: colors.text2,
-    marginTop: 1,
-  },
-  expenseAmount: {
-    fontFamily: fonts.syne,
-    fontSize: 14,
-    fontWeight: '800',
-    color: colors.text,
+    marginHorizontal: 14,
   },
 });

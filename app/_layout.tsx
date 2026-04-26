@@ -36,6 +36,8 @@ export default function RootLayout() {
       <StatusBar style="light" backgroundColor="#0D0D0D" />
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="expense/[id]" />
+        <Stack.Screen name="expense/edit/[id]" />
       </Stack>
     </AppProvider>
   );
