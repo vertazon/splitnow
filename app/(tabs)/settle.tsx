@@ -6,6 +6,7 @@ import {
   StyleSheet,
   Platform,
   TouchableOpacity,
+  ActivityIndicator,
   Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -17,19 +18,29 @@ import Animated, {
 } from 'react-native-reanimated';
 import { colors, avatarColors } from '@/constants/colors';
 import { fonts } from '@/constants/typography';
-import { members, balances } from '@/constants/sampleData';
 import { formatAmount } from '@/constants/amountUtils';
+import { initialsFromName } from '@/constants/dateFormat';
 import { ToastNotification } from '@/components/ToastNotification';
-
-const owedBalances = balances.filter(b => b.amount < 0);
-const allBalances = balances;
-const settleTotal = owedBalances.reduce((s, b) => s + Math.abs(b.amount), 0);
+import { useBalances } from '@/hooks/useBalances';
+import { useSettleUp } from '@/hooks/useSettlements';
+import { useGroupStore } from '@/store/useGroupStore';
+import type { Balance } from '@/types/database';
 
 export default function SettleScreen() {
+  const groupId = useGroupStore(s => s.currentGroupId);
   const [toast, setToast] = useState('');
   const [toastVisible, setToastVisible] = useState(false);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const ctaScale = useSharedValue(1);
+
+  const { data: balances = [], isLoading } = useBalances(groupId);
+  const settleUp = useSettleUp();
+
+  const owedBalances = balances.filter(b => b.amount < 0);
+  const settleTotal = owedBalances.reduce((s, b) => s + Math.abs(b.amount), 0);
+
+  const now = new Date();
+  const monthLabel = now.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
 
   const showToast = useCallback((msg: string) => {
     setToast(msg);
@@ -42,23 +53,39 @@ export default function SettleScreen() {
     transform: [{ scale: ctaScale.value }],
   }));
 
+  const openUpi = (b: Balance) => {
+    if (!b.upiId) return;
+    const url = `upi://pay?pa=${b.upiId}&pn=${encodeURIComponent(b.name)}&am=${Math.abs(b.amount)}&cu=INR`;
+    Linking.openURL(url).catch(() => {});
+  };
+
+  const handlePayMember = (b: Balance) => {
+    openUpi(b);
+    settleUp.mutate({ groupId: groupId, toUserId: b.userId, amount: Math.abs(b.amount) });
+    showToast(`Opening GPay for ${b.name}…`);
+  };
+
   const handleSettleAll = () => {
     ctaScale.value = withSequence(
       withTiming(0.97, { duration: 100 }),
       withTiming(1, { duration: 120 })
     );
+    owedBalances.forEach(b => {
+      settleUp.mutate({ groupId: groupId, toUserId: b.userId, amount: Math.abs(b.amount) });
+    });
+    if (owedBalances.length > 0) openUpi(owedBalances[0]);
     showToast('Opening UPI for all settlements…');
   };
 
-  const handlePayMember = (memberId: string) => {
-    const m = members.find(x => x.id === memberId)!;
-    const b = balances.find(x => x.memberId === memberId)!;
-    if (m.vpa) {
-      const url = `upi://pay?pa=${m.vpa}&pn=${m.name}&am=${Math.abs(b.amount)}&cu=INR`;
-      Linking.openURL(url).catch(() => {});
-    }
-    showToast(`Opening GPay for ${m.name}…`);
-  };
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.safe} edges={['top']}>
+        <View style={styles.loadingWrap}>
+          <ActivityIndicator color={colors.accent} />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -70,82 +97,103 @@ export default function SettleScreen() {
         <Text style={styles.title}>Settle Up</Text>
 
         {/* Total Owe Card */}
-        <View style={[styles.card, styles.totalCard]}>
+        <View style={[styles.card, owedBalances.length > 0 ? styles.totalCard : styles.totalCardSettled]}>
           <Text style={styles.totalLabel}>TOTAL YOU OWE</Text>
-          <Text style={styles.totalAmount}>₹{settleTotal.toLocaleString('en-IN')}</Text>
-          <Text style={styles.totalSub}>to 2 people · Apr 2026</Text>
+          <Text style={[styles.totalAmount, owedBalances.length === 0 && styles.totalAmountSettled]}>
+            ₹{settleTotal.toLocaleString('en-IN')}
+          </Text>
+          <Text style={styles.totalSub}>
+            {owedBalances.length === 0
+              ? 'All settled up · ' + monthLabel
+              : `to ${owedBalances.length} ${owedBalances.length === 1 ? 'person' : 'people'} · ${monthLabel}`}
+          </Text>
         </View>
 
         {/* Settle All CTA */}
-        <Animated.View style={[ctaStyle, styles.ctaWrap]}>
-          <TouchableOpacity style={styles.ctaDanger} onPress={handleSettleAll} activeOpacity={0.9}>
-            <Text style={styles.ctaText}>
-              ⚡ Settle All · Pay ₹{settleTotal.toLocaleString('en-IN')}
-            </Text>
-          </TouchableOpacity>
-        </Animated.View>
+        {owedBalances.length > 0 && (
+          <Animated.View style={[ctaStyle, styles.ctaWrap]}>
+            <TouchableOpacity style={styles.ctaDanger} onPress={handleSettleAll} activeOpacity={0.9}>
+              <Text style={styles.ctaText}>
+                ⚡ Settle All · Pay ₹{settleTotal.toLocaleString('en-IN')}
+              </Text>
+            </TouchableOpacity>
+          </Animated.View>
+        )}
 
         {/* Suggested */}
-        <View style={styles.section}>
-          <Text style={styles.sectionLabel}>SUGGESTED</Text>
-          <View style={[styles.card, { paddingVertical: 4 }]}>
-            {owedBalances.map((b, i) => {
-              const m = members.find(x => x.id === b.memberId)!;
-              const avColor = avatarColors[m.color];
-              return (
-                <View key={b.memberId}>
-                  <View style={styles.settleRow}>
-                    <View style={[styles.avatar, { backgroundColor: avColor.bg }]}>
-                      <Text style={[styles.avatarText, { color: avColor.text }]}>{m.initials}</Text>
+        {owedBalances.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionLabel}>SUGGESTED</Text>
+            <View style={[styles.card, { paddingVertical: 4 }]}>
+              {owedBalances.map((b, i) => {
+                const avColor = avatarColors[b.avatarColor];
+                return (
+                  <View key={b.userId}>
+                    <View style={styles.settleRow}>
+                      <View style={[styles.avatar, { backgroundColor: avColor.bg }]}>
+                        <Text style={[styles.avatarText, { color: avColor.text }]}>
+                          {initialsFromName(b.name)}
+                        </Text>
+                      </View>
+                      <View style={styles.settleInfo}>
+                        <Text style={styles.settleName}>You → {b.name}</Text>
+                        <Text style={styles.settleVpa}>{b.upiId ?? '—'}</Text>
+                      </View>
+                      <Text style={styles.settleAmount}>{formatAmount(b.amount)}</Text>
+                      <TouchableOpacity
+                        style={styles.upiBtn}
+                        onPress={() => handlePayMember(b)}
+                      >
+                        <Text style={styles.upiBtnText}>UPI →</Text>
+                      </TouchableOpacity>
                     </View>
-                    <View style={styles.settleInfo}>
-                      <Text style={styles.settleName}>You → {m.name}</Text>
-                      <Text style={styles.settleVpa}>{m.vpa ?? '—'}</Text>
-                    </View>
-                    <Text style={styles.settleAmount}>
-                      {formatAmount(b.amount)}
-                    </Text>
-                    <TouchableOpacity
-                      style={styles.upiBtn}
-                      onPress={() => handlePayMember(b.memberId)}
-                    >
-                      <Text style={styles.upiBtnText}>UPI →</Text>
-                    </TouchableOpacity>
+                    {i < owedBalances.length - 1 && <View style={styles.divider} />}
                   </View>
-                  {i < owedBalances.length - 1 && <View style={styles.divider} />}
-                </View>
-              );
-            })}
+                );
+              })}
+            </View>
           </View>
-        </View>
+        )}
 
         {/* All Balances */}
-        <View style={styles.section}>
-          <Text style={styles.sectionLabel}>ALL BALANCES</Text>
-          <View style={[styles.card, { paddingVertical: 4 }]}>
-            {allBalances.map((b, i) => {
-              const m = members.find(x => x.id === b.memberId)!;
-              const avColor = avatarColors[m.color];
-              const isOwes = b.amount < 0;
-              return (
-                <View key={b.memberId}>
-                  <View style={styles.allBalRow}>
-                    <View style={[styles.avatar, { backgroundColor: avColor.bg }]}>
-                      <Text style={[styles.avatarText, { color: avColor.text }]}>{m.initials}</Text>
+        {balances.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionLabel}>ALL BALANCES</Text>
+            <View style={[styles.card, { paddingVertical: 4 }]}>
+              {balances.map((b, i) => {
+                const avColor = avatarColors[b.avatarColor];
+                const isOwes = b.amount < 0;
+                return (
+                  <View key={b.userId}>
+                    <View style={styles.allBalRow}>
+                      <View style={[styles.avatar, { backgroundColor: avColor.bg }]}>
+                        <Text style={[styles.avatarText, { color: avColor.text }]}>
+                          {initialsFromName(b.name)}
+                        </Text>
+                      </View>
+                      <View style={styles.settleInfo}>
+                        <Text style={styles.settleName}>{b.name}</Text>
+                      </View>
+                      <Text style={[styles.allBalAmount, isOwes ? styles.danger : styles.accent]}>
+                        {isOwes ? '−' : '+'}₹{Math.abs(b.amount).toLocaleString('en-IN')}
+                      </Text>
                     </View>
-                    <View style={styles.settleInfo}>
-                      <Text style={styles.settleName}>{m.name}</Text>
-                    </View>
-                    <Text style={[styles.allBalAmount, isOwes ? styles.danger : styles.accent]}>
-                      {isOwes ? '−' : '+'}₹{Math.abs(b.amount).toLocaleString('en-IN')}
-                    </Text>
+                    {i < balances.length - 1 && <View style={styles.divider} />}
                   </View>
-                  {i < allBalances.length - 1 && <View style={styles.divider} />}
-                </View>
-              );
-            })}
+                );
+              })}
+            </View>
           </View>
-        </View>
+        )}
+
+        {/* Empty state */}
+        {balances.length === 0 && (
+          <View style={styles.emptyWrap}>
+            <Text style={styles.emptyIcon}>🎉</Text>
+            <Text style={styles.emptyTitle}>All settled up!</Text>
+            <Text style={styles.emptySub}>No outstanding balances with anyone.</Text>
+          </View>
+        )}
       </ScrollView>
 
       <ToastNotification message={toast} visible={toastVisible} />
@@ -165,6 +213,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 22,
     paddingTop: 20,
     paddingBottom: Platform.OS === 'ios' ? 110 : 90,
+  },
+  loadingWrap: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   title: {
     fontFamily: fonts.syne,
@@ -187,6 +240,13 @@ const styles = StyleSheet.create({
     paddingVertical: 24,
     marginBottom: 16,
   },
+  totalCardSettled: {
+    backgroundColor: colors.accentDim,
+    borderColor: colors.accentMid,
+    alignItems: 'center',
+    paddingVertical: 24,
+    marginBottom: 16,
+  },
   totalLabel: {
     fontFamily: fonts.dmSansSemiBold,
     fontSize: 10,
@@ -203,6 +263,9 @@ const styles = StyleSheet.create({
     letterSpacing: -2,
     color: colors.danger,
     marginBottom: 6,
+  },
+  totalAmountSettled: {
+    color: colors.accent,
   },
   totalSub: {
     fontFamily: fonts.dmSans,
@@ -319,4 +382,25 @@ const styles = StyleSheet.create({
   },
   danger: { color: colors.danger },
   accent: { color: colors.accent },
+  emptyWrap: {
+    alignItems: 'center',
+    paddingVertical: 48,
+  },
+  emptyIcon: {
+    fontSize: 48,
+    marginBottom: 12,
+  },
+  emptyTitle: {
+    fontFamily: fonts.syne,
+    fontSize: 20,
+    fontWeight: '800',
+    color: colors.text,
+    marginBottom: 6,
+  },
+  emptySub: {
+    fontFamily: fonts.dmSans,
+    fontSize: 13,
+    color: colors.text2,
+    textAlign: 'center',
+  },
 });

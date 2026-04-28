@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -20,19 +20,21 @@ import Animated, {
 import { useRouter } from 'expo-router';
 import { colors } from '@/constants/colors';
 import { fonts } from '@/constants/typography';
-import { categories, members } from '@/constants/sampleData';
-import type { Expense } from '@/constants/sampleData';
-import { useAppContext } from '@/context/AppContext';
+import { categories } from '@/constants/sampleData';
 import { CategoryChip } from '@/components/CategoryChip';
 import { PersonChip } from '@/components/PersonChip';
 import { CategoryPickerModal } from '@/components/CategoryPickerModal';
 import { ToastNotification } from '@/components/ToastNotification';
 import { sanitizeAmountInput, isValidAmount, parseAmount, formatAmount } from '@/constants/amountUtils';
+import { DEV_USER_ID } from '@/lib/auth';
+import { useGroupStore } from '@/store/useGroupStore';
+import { useUserStore } from '@/store/useUserStore';
+import { useMembers } from '@/hooks/useMembers';
+import { useAddExpense } from '@/hooks/useExpenses';
+import type { AvatarColor } from '@/types/database';
 
-const splitPeople = members.filter(m => m.id !== 'aryan');
 const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
 
-// Steps: ≤4 digits → 48, 5–6 → 40, 7–8 → 32, 9+ → 26
 function amountFontSize(len: number) {
   if (len > 8) return 26;
   if (len > 6) return 32;
@@ -42,23 +44,36 @@ function amountFontSize(len: number) {
 
 export default function AddScreen() {
   const router = useRouter();
-  const { addExpense } = useAppContext();
+  const groupId = useGroupStore(s => s.currentGroupId);
+  const currentUserId = useUserStore(s => s.currentUserId) ?? DEV_USER_ID;
+  const { data: members = [] } = useMembers(groupId);
+  const addExpense = useAddExpense();
   const { width } = useWindowDimensions();
-  // 3-column grid: (screenWidth - 44 screen padding - 16 two gaps) / 3
   const chipWidth = (width - 44 - 16) / 3;
+
+  const splitPeople = members.filter(m => m.id !== currentUserId);
+
   const [amount, setAmount] = useState('');
   const [title, setTitle] = useState('');
   const [selectedCatId, setSelectedCatId] = useState(categories[0].id);
   const [catPickerOpen, setCatPickerOpen] = useState(false);
-  const [selectedPeople, setSelectedPeople] = useState<Set<string>>(
-    new Set(['raj', 'priya'])
-  );
+  const [selectedPeople, setSelectedPeople] = useState<Set<string>>(new Set());
   const [amountError, setAmountError] = useState('');
   const [titleError, setTitleError] = useState('');
   const [toast, setToast] = useState('');
   const [toastVisible, setToastVisible] = useState(false);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const ctaScale = useSharedValue(1);
+
+  // Default: pre-select first two non-current members so the strip isn't empty
+  // Run only when members first arrive AND no selection has been made yet.
+  const didDefault = useRef(false);
+  useEffect(() => {
+    if (didDefault.current) return;
+    if (splitPeople.length === 0) return;
+    setSelectedPeople(new Set(splitPeople.slice(0, 2).map(m => m.id)));
+    didDefault.current = true;
+  }, [splitPeople]);
 
   const showToast = useCallback((msg: string) => {
     setToast(msg);
@@ -82,8 +97,8 @@ export default function AddScreen() {
   const splitCount = selectedPeople.size + 1;
   const each = parsedAmount > 0 ? parseFloat((parsedAmount / splitCount).toFixed(2)) : 0;
   const splitText = each > 0
-    ? `Each pays ₹${each.toLocaleString('en-IN')} (${splitCount} people)`
-    : `Split with ${splitCount} people`;
+    ? `Each pays ${formatAmount(each)} (${splitCount} ${splitCount === 1 ? 'person' : 'people'})`
+    : `Split with ${splitCount} ${splitCount === 1 ? 'person' : 'people'}`;
 
   const ctaStyle = useAnimatedStyle(() => ({
     transform: [{ scale: ctaScale.value }],
@@ -93,10 +108,10 @@ export default function AddScreen() {
     setAmount('');
     setTitle('');
     setSelectedCatId(categories[0].id);
-    setSelectedPeople(new Set(['raj', 'priya']));
+    setSelectedPeople(new Set(splitPeople.slice(0, 2).map(m => m.id)));
     setAmountError('');
     setTitleError('');
-  }, []);
+  }, [splitPeople]);
 
   const handleCancel = useCallback(() => {
     resetForm();
@@ -120,33 +135,30 @@ export default function AddScreen() {
       withTiming(1, { duration: 120 })
     );
 
-    const cat = categories.find(c => c.id === selectedCatId) ?? categories[0];
-    const splitMemberIds = ['aryan', ...splitPeople
-      .filter(m => selectedPeople.has(m.id))
-      .map(m => m.id)];
-    const peopleNames = splitMemberIds
-      .filter(id => id !== 'aryan')
-      .map(id => splitPeople.find(m => m.id === id)?.name ?? '')
-      .filter(Boolean);
+    const splitWith = [currentUserId, ...Array.from(selectedPeople)];
 
-    const newExpense: Expense = {
-      id: Date.now().toString(),
-      emoji: cat.emoji,
-      title: title.trim(),
-      amount: parsedAmount,
-      date: 'Just now',
-      people: peopleNames.length > 0 ? peopleNames.join(', ') : undefined,
-      category: cat.id,
-      paidBy: 'aryan',
-      splitWith: splitMemberIds,
-      addedBy: 'aryan',
-      createdAt: new Date().toISOString(),
-    };
-
-    addExpense(newExpense);
-    showToast(`✓ ${formatAmount(parsedAmount)} added!`);
-    resetForm();
-  }, [normalizedAmount, parsedAmount, title, selectedCatId, selectedPeople, addExpense, showToast, resetForm]);
+    addExpense.mutate(
+      {
+        groupId,
+        title: title.trim(),
+        amount: parsedAmount,
+        category: selectedCatId,
+        paidBy: currentUserId,
+        addedBy: currentUserId,
+        splitWith,
+      },
+      {
+        onSuccess: () => {
+          showToast(`✓ ${formatAmount(parsedAmount)} added!`);
+          resetForm();
+          setTimeout(() => router.navigate('/'), 600);
+        },
+        onError: (err: any) => {
+          showToast(`Couldn't save: ${err?.message ?? 'try again'}`);
+        },
+      }
+    );
+  }, [normalizedAmount, parsedAmount, title, selectedCatId, selectedPeople, groupId, currentUserId, addExpense, showToast, resetForm, router, ctaScale]);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -185,7 +197,7 @@ export default function AddScreen() {
           {!!amountError && <Text style={styles.fieldError}>{amountError}</Text>}
         </View>
 
-        {/* Title / Note */}
+        {/* Title */}
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>TITLE *</Text>
           <View style={[styles.noteBox, !!titleError && styles.inputError]}>
@@ -216,7 +228,6 @@ export default function AddScreen() {
                 style={{ width: chipWidth }}
               />
             ))}
-            {/* More chip — shows selected category name if it's from the extended list */}
             {(() => {
               const isMoreSel = !categories.slice(0, 9).find(c => c.id === selectedCatId);
               const moreCat = isMoreSel ? categories.find(c => c.id === selectedCatId) : null;
@@ -244,8 +255,8 @@ export default function AddScreen() {
                 label={m.name}
                 selected={selectedPeople.has(m.id)}
                 onPress={() => togglePerson(m.id)}
-                initials={m.initials}
-                avatarColor={m.color as any}
+                initials={m.name.slice(0, 2).toUpperCase()}
+                avatarColor={(m.avatar_color ?? 'green') as AvatarColor}
               />
             ))}
           </View>
@@ -254,11 +265,14 @@ export default function AddScreen() {
 
         {/* CTA */}
         <AnimatedTouchable
-          style={[styles.cta, ctaStyle]}
+          style={[styles.cta, ctaStyle, addExpense.isPending && { opacity: 0.7 }]}
           onPress={handleAdd}
           activeOpacity={0.85}
+          disabled={addExpense.isPending}
         >
-          <Text style={styles.ctaText}>Add Expense →</Text>
+          <Text style={styles.ctaText}>
+            {addExpense.isPending ? 'Saving…' : 'Add Expense →'}
+          </Text>
         </AnimatedTouchable>
       </ScrollView>
 
@@ -274,13 +288,8 @@ export default function AddScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: {
-    flex: 1,
-    backgroundColor: colors.bg,
-  },
-  scroll: {
-    flex: 1,
-  },
+  safe: { flex: 1, backgroundColor: colors.bg },
+  scroll: { flex: 1 },
   content: {
     paddingHorizontal: 22,
     paddingTop: 20,
@@ -314,10 +323,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.text2,
   },
-  amountSection: {
-    alignItems: 'center',
-    marginBottom: 22,
-  },
+  amountSection: { alignItems: 'center', marginBottom: 22 },
   amountLabel: {
     fontFamily: fonts.dmSansSemiBold,
     fontSize: 10,
@@ -355,9 +361,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     minWidth: 0,
   },
-  section: {
-    marginBottom: 20,
-  },
+  section: { marginBottom: 20 },
   sectionLabel: {
     fontFamily: fonts.dmSansSemiBold,
     fontSize: 10,
@@ -405,9 +409,7 @@ const styles = StyleSheet.create({
     color: colors.text2,
     textAlign: 'center',
   },
-  moreCatTextSelected: {
-    color: colors.accent,
-  },
+  moreCatTextSelected: { color: colors.accent },
   fieldError: {
     fontFamily: fonts.dmSans,
     fontSize: 11,
@@ -415,19 +417,9 @@ const styles = StyleSheet.create({
     marginTop: 6,
     paddingLeft: 2,
   },
-  inputError: {
-    borderColor: colors.danger,
-  },
-  catGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  peopleRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
+  inputError: { borderColor: colors.danger },
+  catGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  peopleRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   splitCalc: {
     fontFamily: fonts.dmSansMedium,
     fontSize: 12,

@@ -6,7 +6,8 @@
       "Bash(npx expo *)",
       "Bash(node -e \"const pkg = require\\('./node_modules/@expo-google-fonts/dm-sans/package.json'\\); console.log\\(JSON.stringify\\(pkg.main\\)\\)\")",
       "Bash(node -e \"const f = require\\('./node_modules/@expo-google-fonts/dm-sans'\\); console.log\\(Object.keys\\(f\\).filter\\(k => !k.startsWith\\('use'\\)\\).join\\('\\\\n'\\)\\)\")",
-      "Bash(node -e \"const keys = Object.keys\\(require\\('./node_modules/@expo-google-fonts/plus-jakarta-sans/index.js'\\)\\); console.log\\(keys.filter\\(k => k.startsWith\\('PlusJakarta'\\)\\).join\\('\\\\n'\\)\\)\")"
+      "Bash(node -e \"const keys = Object.keys\\(require\\('./node_modules/@expo-google-fonts/plus-jakarta-sans/index.js'\\)\\); console.log\\(keys.filter\\(k => k.startsWith\\('PlusJakarta'\\)\\).join\\('\\\\n'\\)\\)\")",
+      "Bash(git rm *)"
     ]
   }
 }

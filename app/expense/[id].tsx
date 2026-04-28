@@ -1,6 +1,6 @@
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
-  Platform, TextInput, KeyboardAvoidingView,
+  Platform, TextInput, KeyboardAvoidingView, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -8,36 +8,24 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRef, useState } from 'react';
 import { colors, avatarColors } from '@/constants/colors';
 import { fonts } from '@/constants/typography';
-import { members, categories } from '@/constants/sampleData';
-import type { Expense, ExpenseComment } from '@/constants/sampleData';
-import { useAppContext } from '@/context/AppContext';
+import { categories } from '@/constants/sampleData';
 import { formatAmount } from '@/constants/amountUtils';
+import { initialsFromName } from '@/constants/dateFormat';
+import type { ExpenseComment, User, AvatarColor } from '@/types/database';
+import { DEV_USER_ID } from '@/lib/auth';
+import { useGroupStore } from '@/store/useGroupStore';
+import { useUserStore } from '@/store/useUserStore';
+import { useExpense, useDeleteExpense, useAddComment } from '@/hooks/useExpenses';
+import { useMembers } from '@/hooks/useMembers';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-type NetType = 'lent' | 'owed' | 'received' | 'personal';
+type NetType = 'lent' | 'owed' | 'personal';
 
-function getNetBalance(exp: Expense, perPerson: number): { type: NetType; amount: number } {
-  if (exp.isIncome) return { type: 'received', amount: exp.amount };
-  const split = exp.splitWith;
-  if (!split || split.length <= 1) return { type: 'personal', amount: exp.amount };
-  if (exp.paidBy === 'aryan') return { type: 'lent', amount: exp.amount - perPerson };
-  return { type: 'owed', amount: perPerson };
-}
-
-const NET_COLORS: Record<NetType, { main: string; dim: string; bg: string }> = {
-  lent:     { main: colors.accent, dim: 'rgba(0,212,154,0.60)', bg: colors.accentDim },
-  received: { main: colors.accent, dim: 'rgba(0,212,154,0.60)', bg: colors.accentDim },
-  owed:     { main: colors.danger, dim: 'rgba(255,89,89,0.60)', bg: colors.dangerDim },
-  personal: { main: colors.text,   dim: colors.text2,           bg: 'transparent'    },
-};
-
-const NET_LABELS: Record<NetType, string> = {
-  lent: 'you lent', received: 'you received', owed: 'you owe', personal: '',
-};
-
-function formatDateTime(iso: string): { date: string; time: string } {
+function formatDateTime(iso: string | null): { date: string; time: string } | null {
+  if (!iso) return null;
   const d = new Date(iso);
+  if (isNaN(d.getTime())) return null;
   const date = d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
   const time = d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }).toUpperCase();
   return { date, time };
@@ -49,31 +37,40 @@ function formatTime(iso: string): string {
   }).toUpperCase();
 }
 
+const NET_COLORS: Record<NetType, { main: string; dim: string; bg: string }> = {
+  lent:     { main: colors.accent, dim: 'rgba(0,212,154,0.60)', bg: colors.accentDim },
+  owed:     { main: colors.danger, dim: 'rgba(255,89,89,0.60)', bg: colors.dangerDim },
+  personal: { main: colors.text,   dim: colors.text2,           bg: 'transparent'    },
+};
+
+const NET_LABELS: Record<NetType, string> = {
+  lent: 'you lent', owed: 'you owe', personal: '',
+};
+
 // ─── Comment bubble ───────────────────────────────────────────────────────────
 
-function CommentBubble({ comment }: { comment: ExpenseComment }) {
-  const isMe = comment.memberId === 'aryan';
-  const member = members.find(m => m.id === comment.memberId);
+function CommentBubble({ comment, memberMap, currentUserId }: { comment: ExpenseComment; memberMap: Map<string, User>; currentUserId: string }) {
+  const isMe = comment.user_id === currentUserId;
+  const member = memberMap.get(comment.user_id);
   if (!member) return null;
+  const av = avatarColors[(member.avatar_color ?? 'green') as AvatarColor] ?? avatarColors.green;
 
   return (
     <View style={[bubbleStyles.row, isMe && bubbleStyles.rowReverse]}>
       {!isMe && (
-        <View style={[bubbleStyles.avatar, { backgroundColor: avatarColors[member.color].bg }]}>
-          <Text style={[bubbleStyles.avatarText, { color: avatarColors[member.color].text }]}>
-            {member.initials}
+        <View style={[bubbleStyles.avatar, { backgroundColor: av.bg }]}>
+          <Text style={[bubbleStyles.avatarText, { color: av.text }]}>
+            {initialsFromName(member.name)}
           </Text>
         </View>
       )}
       <View style={[bubbleStyles.bubble, isMe ? bubbleStyles.bubbleMe : bubbleStyles.bubbleThem]}>
-        {!isMe && (
-          <Text style={bubbleStyles.senderName}>{member.name}</Text>
-        )}
+        {!isMe && <Text style={bubbleStyles.senderName}>{member.name}</Text>}
         <Text style={[bubbleStyles.messageText, isMe && { color: '#000' }]}>
           {comment.text}
         </Text>
         <Text style={[bubbleStyles.timestamp, isMe && { color: 'rgba(0,0,0,0.5)' }]}>
-          {formatTime(comment.createdAt)}
+          {formatTime(comment.created_at)}
         </Text>
       </View>
     </View>
@@ -81,61 +78,27 @@ function CommentBubble({ comment }: { comment: ExpenseComment }) {
 }
 
 const bubbleStyles = StyleSheet.create({
-  row: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 8,
-    marginBottom: 10,
-  },
-  rowReverse: {
-    flexDirection: 'row-reverse',
-  },
+  row: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, marginBottom: 10 },
+  rowReverse: { flexDirection: 'row-reverse' },
   avatar: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
+    width: 28, height: 28, borderRadius: 14,
+    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
   },
-  avatarText: {
-    fontFamily: fonts.dmSansSemiBold,
-    fontSize: 9,
-    fontWeight: '700',
-  },
-  bubble: {
-    maxWidth: '72%',
-    borderRadius: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-  },
-  bubbleThem: {
-    backgroundColor: colors.cardElevated,
-    borderBottomLeftRadius: 4,
-  },
-  bubbleMe: {
-    backgroundColor: colors.accent,
-    borderBottomRightRadius: 4,
-  },
+  avatarText: { fontFamily: fonts.dmSansSemiBold, fontSize: 9, fontWeight: '700' },
+  bubble: { maxWidth: '72%', borderRadius: 16, paddingHorizontal: 12, paddingVertical: 9 },
+  bubbleThem: { backgroundColor: colors.cardElevated, borderBottomLeftRadius: 4 },
+  bubbleMe: { backgroundColor: colors.accent, borderBottomRightRadius: 4 },
   senderName: {
-    fontFamily: fonts.dmSansSemiBold,
-    fontSize: 10,
-    fontWeight: '700',
-    color: colors.text2,
-    marginBottom: 3,
+    fontFamily: fonts.dmSansSemiBold, fontSize: 10, fontWeight: '700',
+    color: colors.text2, marginBottom: 3,
   },
   messageText: {
-    fontFamily: fonts.dmSans,
-    fontSize: 13,
-    color: colors.text,
-    lineHeight: 18,
+    fontFamily: fonts.dmSans, fontSize: 13,
+    color: colors.text, lineHeight: 18,
   },
   timestamp: {
-    fontFamily: fonts.dmSans,
-    fontSize: 9,
-    color: colors.text3,
-    marginTop: 4,
-    textAlign: 'right',
+    fontFamily: fonts.dmSans, fontSize: 9,
+    color: colors.text3, marginTop: 4, textAlign: 'right',
   },
 });
 
@@ -144,13 +107,29 @@ const bubbleStyles = StyleSheet.create({
 export default function ExpenseDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { expenses, deleteExpense, addComment } = useAppContext();
+  const groupId = useGroupStore(s => s.currentGroupId);
+  const currentUserId = useUserStore(s => s.currentUserId) ?? DEV_USER_ID;
+
+  const { data: expense, isLoading } = useExpense(id);
+  const { data: members = [] } = useMembers(groupId);
+  const deleteExpense = useDeleteExpense();
+  const addComment = useAddComment();
+
   const scrollRef = useRef<ScrollView>(null);
   const [commentText, setCommentText] = useState('');
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const deleteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const expense = expenses.find(e => e.id === id);
+  // Loading state
+  if (isLoading && !expense) {
+    return (
+      <SafeAreaView style={styles.safe} edges={['top']}>
+        <View style={styles.notFound}>
+          <ActivityIndicator color={colors.text2} />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   if (!expense) {
     return (
@@ -165,29 +144,43 @@ export default function ExpenseDetailScreen() {
     );
   }
 
+  // ── Derived data ──
+  const memberMap = new Map<string, User>(members.map(m => [m.id, m]));
   const category = expense.category ? categories.find(c => c.id === expense.category) : null;
-  const payer = expense.paidBy ? members.find(m => m.id === expense.paidBy) : null;
-  const adder = expense.addedBy ? members.find(m => m.id === expense.addedBy) : null;
+  const emoji = category?.emoji ?? '📦';
+  const payer = expense.paid_by ? memberMap.get(expense.paid_by) : null;
+  const adder = expense.added_by ? memberMap.get(expense.added_by) : null;
 
-  const splitMembers = (expense.splitWith ?? [])
-    .map(mid => members.find(m => m.id === mid))
-    .filter((m): m is typeof members[0] => !!m);
+  const splits = expense.splits ?? [];
+  const splitMembers = splits
+    .map(s => memberMap.get(s.user_id))
+    .filter((m): m is User => !!m);
 
-  const perPerson = splitMembers.length > 0
-    ? parseFloat((expense.amount / splitMembers.length).toFixed(2))
+  const perPerson = splits.length > 0
+    ? parseFloat((expense.amount / splits.length).toFixed(2))
     : expense.amount;
 
   const isPersonal = splitMembers.length <= 1;
-  const isYouPaid = expense.paidBy === 'aryan';
+  const isYouPaid = expense.paid_by === currentUserId;
 
-  const net = getNetBalance(expense, perPerson);
+  // Compute net
+  const net: { type: NetType; amount: number } = (() => {
+    const otherSplits = splits.filter(s => s.user_id !== currentUserId);
+    const myShare = splits.find(s => s.user_id === currentUserId)?.amount_owed ?? 0;
+    if (otherSplits.length === 0) return { type: 'personal', amount: expense.amount };
+    if (isYouPaid) {
+      const lent = otherSplits.reduce((sum, s) => sum + s.amount_owed, 0);
+      return { type: 'lent', amount: parseFloat(lent.toFixed(2)) };
+    }
+    return { type: 'owed', amount: myShare };
+  })();
   const netColor = NET_COLORS[net.type];
-  const createdFmt = expense.createdAt ? formatDateTime(expense.createdAt) : null;
-  const updatedFmt = expense.updatedAt ? formatDateTime(expense.updatedAt) : null;
+
+  const createdFmt = formatDateTime(expense.created_at);
+  const updatedFmt = formatDateTime(expense.updated_at);
   const comments = expense.comments ?? [];
 
   // ── Handlers ──
-
   const handleDelete = () => {
     if (!deleteConfirm) {
       setDeleteConfirm(true);
@@ -195,22 +188,33 @@ export default function ExpenseDetailScreen() {
       deleteTimer.current = setTimeout(() => setDeleteConfirm(false), 3000);
       return;
     }
-    deleteExpense(expense.id);
-    router.back();
+    deleteExpense.mutate(
+      { expenseId: expense.id, groupId: expense.group_id },
+      { onSuccess: () => router.back() }
+    );
   };
 
   const handleSend = () => {
     const text = commentText.trim();
     if (!text) return;
-    addComment(expense.id, {
-      id: Date.now().toString(),
-      memberId: 'aryan',
-      text,
-      createdAt: new Date().toISOString(),
-    });
-    setCommentText('');
-    setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 120);
+    addComment.mutate(
+      {
+        expenseId: expense.id,
+        groupId: expense.group_id,
+        userId: currentUserId,
+        text,
+      },
+      {
+        onSuccess: () => {
+          setCommentText('');
+          setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 120);
+        },
+      }
+    );
   };
+
+  // Avatar color helper for split rows
+  const avFor = (m: User) => avatarColors[(m.avatar_color ?? 'green') as AvatarColor] ?? avatarColors.green;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -219,7 +223,7 @@ export default function ExpenseDetailScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 24}
       >
-        {/* ── Fixed header ── */}
+        {/* Fixed header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
             <Text style={styles.backText}>← Back</Text>
@@ -235,6 +239,7 @@ export default function ExpenseDetailScreen() {
             <TouchableOpacity
               style={[styles.actionBtn, deleteConfirm ? styles.actionBtnDanger : styles.actionBtnDelete]}
               onPress={handleDelete}
+              disabled={deleteExpense.isPending}
             >
               <Ionicons
                 name={deleteConfirm ? 'warning-outline' : 'trash-outline'}
@@ -248,7 +253,7 @@ export default function ExpenseDetailScreen() {
           </View>
         </View>
 
-        {/* ── Scrollable detail + comments ── */}
+        {/* Scrollable detail + comments */}
         <ScrollView
           ref={scrollRef}
           style={styles.scroll}
@@ -259,11 +264,11 @@ export default function ExpenseDetailScreen() {
           {/* Hero */}
           <View style={styles.hero}>
             <View style={styles.emojiCircle}>
-              <Text style={styles.heroEmoji}>{expense.emoji}</Text>
+              <Text style={styles.heroEmoji}>{emoji}</Text>
             </View>
             <Text style={styles.heroTitle}>{expense.title}</Text>
             <View style={styles.heroMeta}>
-              <Text style={styles.heroDate}>{expense.date}</Text>
+              <Text style={styles.heroDate}>{createdFmt?.date ?? ''}</Text>
               {category && (
                 <>
                   <Text style={styles.heroSep}>·</Text>
@@ -275,20 +280,20 @@ export default function ExpenseDetailScreen() {
             </View>
           </View>
 
-          {/* Entry details — who added it and when */}
+          {/* Entry details */}
           {(createdFmt || adder) && (
             <View style={styles.entryMetaRow}>
               {adder && (
-                <View style={[styles.entryMetaAvatar, { backgroundColor: avatarColors[adder.color].bg }]}>
-                  <Text style={[styles.entryMetaInitials, { color: avatarColors[adder.color].text }]}>
-                    {adder.initials}
+                <View style={[styles.entryMetaAvatar, { backgroundColor: avFor(adder).bg }]}>
+                  <Text style={[styles.entryMetaInitials, { color: avFor(adder).text }]}>
+                    {initialsFromName(adder.name)}
                   </Text>
                 </View>
               )}
               <View style={styles.entryMetaText}>
                 {adder && (
                   <Text style={styles.entryMetaLabel}>
-                    Added by {adder.id === 'aryan' ? 'you' : adder.name}
+                    Added by {adder.id === currentUserId ? 'you' : adder.name}
                     {updatedFmt ? ' · edited' : ''}
                   </Text>
                 )}
@@ -340,14 +345,14 @@ export default function ExpenseDetailScreen() {
               <Text style={styles.sectionLabel}>PAID BY</Text>
               <View style={styles.card}>
                 <View style={styles.memberRow}>
-                  <View style={[styles.avatar, { backgroundColor: avatarColors[payer.color].bg }]}>
-                    <Text style={[styles.avatarText, { color: avatarColors[payer.color].text }]}>
-                      {payer.initials}
+                  <View style={[styles.avatar, { backgroundColor: avFor(payer).bg }]}>
+                    <Text style={[styles.avatarText, { color: avFor(payer).text }]}>
+                      {initialsFromName(payer.name)}
                     </Text>
                   </View>
                   <View style={styles.memberInfo}>
                     <Text style={styles.memberName}>
-                      {payer.id === 'aryan' ? 'You (Aryan)' : payer.name}
+                      {payer.id === currentUserId ? `You (${payer.name})` : payer.name}
                     </Text>
                     <Text style={styles.memberSub}>
                       Paid {formatAmount(expense.amount)}
@@ -369,21 +374,21 @@ export default function ExpenseDetailScreen() {
               <Text style={styles.sectionLabel}>SPLIT WITH</Text>
               <View style={[styles.card, styles.cardFlush]}>
                 {splitMembers.map((m, i) => {
-                  const isPayer = m.id === expense.paidBy;
+                  const isPayer = m.id === expense.paid_by;
                   const shareColor = isPayer
                     ? colors.text2
-                    : (isYouPaid || m.id === 'aryan') ? colors.danger : colors.text2;
+                    : (isYouPaid || m.id === currentUserId) ? colors.danger : colors.text2;
                   return (
                     <View key={m.id}>
                       <View style={styles.splitRow}>
-                        <View style={[styles.avatar, { backgroundColor: avatarColors[m.color].bg }]}>
-                          <Text style={[styles.avatarText, { color: avatarColors[m.color].text }]}>
-                            {m.initials}
+                        <View style={[styles.avatar, { backgroundColor: avFor(m).bg }]}>
+                          <Text style={[styles.avatarText, { color: avFor(m).text }]}>
+                            {initialsFromName(m.name)}
                           </Text>
                         </View>
                         <View style={styles.memberInfo}>
                           <Text style={styles.memberName}>
-                            {m.id === 'aryan' ? 'You' : m.name}
+                            {m.id === currentUserId ? 'You' : m.name}
                           </Text>
                           {isPayer && (
                             <Text style={styles.payerTagText}>paid · settled</Text>
@@ -420,18 +425,19 @@ export default function ExpenseDetailScreen() {
               <Text style={styles.emptyComments}>No comments yet. Start the conversation.</Text>
             ) : (
               <View style={styles.commentsList}>
-                {comments.map(c => (
-                  <CommentBubble key={c.id} comment={c} />
-                ))}
+                {[...comments]
+                  .sort((a, b) => a.created_at.localeCompare(b.created_at))
+                  .map(c => (
+                    <CommentBubble key={c.id} comment={c} memberMap={memberMap} currentUserId={currentUserId} />
+                  ))}
               </View>
             )}
           </View>
 
-          {/* Bottom padding so last bubble clears the input bar */}
           <View style={{ height: 8 }} />
         </ScrollView>
 
-        {/* ── Pinned comment input ── */}
+        {/* Pinned comment input */}
         <View style={styles.inputBar}>
           <TextInput
             style={styles.inputField}
@@ -443,11 +449,13 @@ export default function ExpenseDetailScreen() {
             returnKeyType="send"
             onSubmitEditing={handleSend}
             multiline
+            editable={!addComment.isPending}
           />
           <TouchableOpacity
             style={[styles.sendBtn, commentText.trim().length > 0 && styles.sendBtnActive]}
             onPress={handleSend}
             activeOpacity={0.75}
+            disabled={addComment.isPending}
           >
             <Text style={[styles.sendBtnText, commentText.trim().length > 0 && styles.sendBtnTextActive]}>
               ↑
@@ -459,18 +467,15 @@ export default function ExpenseDetailScreen() {
   );
 }
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
-
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
   flex: { flex: 1 },
-  notFound: { flex: 1, paddingHorizontal: 22, paddingTop: 16 },
+  notFound: { flex: 1, paddingHorizontal: 22, paddingTop: 16, justifyContent: 'center' },
   notFoundText: {
     fontFamily: fonts.dmSans, fontSize: 14, color: colors.text2,
     textAlign: 'center', marginTop: 60,
   },
 
-  // Header
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -507,17 +512,10 @@ const styles = StyleSheet.create({
     fontWeight: '600', color: colors.text2,
   },
   actionBtnTextDelete: { color: colors.danger },
-  actionBtnTextDanger: { color: colors.danger, fontWeight: '700' },
 
-  // Scroll
   scroll: { flex: 1 },
-  content: {
-    paddingHorizontal: 22,
-    paddingTop: 16,
-    paddingBottom: 8,
-  },
+  content: { paddingHorizontal: 22, paddingTop: 16, paddingBottom: 8 },
 
-  // Hero
   hero: { alignItems: 'center', marginBottom: 20 },
   emojiCircle: {
     width: 76, height: 76, borderRadius: 24,
@@ -543,7 +541,6 @@ const styles = StyleSheet.create({
     fontWeight: '600', color: colors.text2,
   },
 
-  // Amount card
   amountCard: {
     backgroundColor: colors.card, borderWidth: 1,
     borderColor: colors.border, borderRadius: 22,
@@ -568,7 +565,6 @@ const styles = StyleSheet.create({
   netStripSign: { fontFamily: fonts.syne, fontSize: 16, fontWeight: '800' },
   netStripLabel: { fontFamily: fonts.dmSans, fontSize: 12 },
 
-  // Shared
   section: { marginBottom: 14 },
   sectionLabel: {
     fontFamily: fonts.dmSansSemiBold, fontSize: 10, fontWeight: '700',
@@ -580,7 +576,6 @@ const styles = StyleSheet.create({
   },
   cardFlush: { padding: 0, paddingVertical: 4 },
 
-  // Member rows
   memberRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   avatar: {
     width: 38, height: 38, borderRadius: 19,
@@ -608,7 +603,6 @@ const styles = StyleSheet.create({
 
   noteText: { fontFamily: fonts.dmSans, fontSize: 13, color: colors.text, lineHeight: 20 },
 
-  // Entry meta (compact inline row below hero)
   entryMetaRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -625,14 +619,12 @@ const styles = StyleSheet.create({
   entryMetaLabel: { fontFamily: fonts.dmSansSemiBold, fontSize: 11, fontWeight: '600', color: colors.text2 },
   entryMetaTime: { fontFamily: fonts.dmSans, fontSize: 10, color: colors.text3, marginTop: 1 },
 
-  // Comments
   emptyComments: {
     fontFamily: fonts.dmSans, fontSize: 12, color: colors.text3,
     textAlign: 'center', paddingVertical: 20,
   },
   commentsList: { gap: 0 },
 
-  // Input bar
   inputBar: {
     flexDirection: 'row',
     alignItems: 'flex-end',
@@ -668,16 +660,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     flexShrink: 0,
   },
-  sendBtnActive: {
-    backgroundColor: colors.accent,
-    borderColor: colors.accent,
-  },
-  sendBtnText: {
-    fontSize: 16,
-    color: colors.text3,
-    fontWeight: '700',
-  },
-  sendBtnTextActive: {
-    color: '#000',
-  },
+  sendBtnActive: { backgroundColor: colors.accent, borderColor: colors.accent },
+  sendBtnText: { fontSize: 16, color: colors.text3, fontWeight: '700' },
+  sendBtnTextActive: { color: '#000' },
 });

@@ -1,7 +1,7 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import {
   View, Text, TextInput, ScrollView, StyleSheet,
-  Platform, TouchableOpacity, useWindowDimensions,
+  Platform, TouchableOpacity, useWindowDimensions, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, {
@@ -10,15 +10,19 @@ import Animated, {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { colors } from '@/constants/colors';
 import { fonts } from '@/constants/typography';
-import { categories, members } from '@/constants/sampleData';
-import { useAppContext } from '@/context/AppContext';
+import { categories } from '@/constants/sampleData';
 import { CategoryChip } from '@/components/CategoryChip';
 import { PersonChip } from '@/components/PersonChip';
 import { ToastNotification } from '@/components/ToastNotification';
 import { CategoryPickerModal } from '@/components/CategoryPickerModal';
 import { sanitizeAmountInput, isValidAmount, parseAmount } from '@/constants/amountUtils';
+import { DEV_USER_ID } from '@/lib/auth';
+import { useGroupStore } from '@/store/useGroupStore';
+import { useUserStore } from '@/store/useUserStore';
+import { useMembers } from '@/hooks/useMembers';
+import { useExpense, useUpdateExpense } from '@/hooks/useExpenses';
+import type { AvatarColor } from '@/types/database';
 
-const splitPeople = members.filter(m => m.id !== 'aryan');
 const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
 
 function amountFontSize(len: number) {
@@ -31,26 +35,22 @@ function amountFontSize(len: number) {
 export default function EditExpenseScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { expenses, updateExpense } = useAppContext();
+  const groupId = useGroupStore(s => s.currentGroupId);
+  const currentUserId = useUserStore(s => s.currentUserId) ?? DEV_USER_ID;
+  const { data: expense, isLoading } = useExpense(id);
+  const { data: members = [] } = useMembers(groupId);
+  const updateExpense = useUpdateExpense();
   const { width } = useWindowDimensions();
   const chipWidth = (width - 44 - 16) / 3;
 
-  // Derive expense once — do NOT move below hooks
-  const expense = expenses.find(e => e.id === id);
+  const splitPeople = members.filter(m => m.id !== currentUserId);
 
-  // ── All hooks must be unconditional (before any early return) ──
-  // Lazy initialisers run once on mount and safely handle expense being undefined.
-  const [amount, setAmount] = useState(() =>
-    expense ? String(expense.amount) : ''
-  );
-  const [title, setTitle] = useState(() => expense?.title ?? '');
-  const [selectedCatId, setSelectedCatId] = useState(() =>
-    expense?.category ?? categories[0].id
-  );
+  // ── All hooks unconditional (no early return before them) ──
+  const [amount, setAmount] = useState('');
+  const [title, setTitle] = useState('');
+  const [selectedCatId, setSelectedCatId] = useState(categories[0].id);
+  const [selectedPeople, setSelectedPeople] = useState<Set<string>>(new Set());
   const [catPickerOpen, setCatPickerOpen] = useState(false);
-  const [selectedPeople, setSelectedPeople] = useState<Set<string>>(() =>
-    new Set((expense?.splitWith ?? []).filter(mid => mid !== 'aryan'))
-  );
   const [amountError, setAmountError] = useState('');
   const [titleError, setTitleError] = useState('');
   const [toast, setToast] = useState('');
@@ -58,14 +58,30 @@ export default function EditExpenseScreen() {
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const ctaScale = useSharedValue(1);
 
+  // Hydrate form from the loaded expense, exactly once
+  const hydrated = useRef(false);
+  useEffect(() => {
+    if (hydrated.current) return;
+    if (!expense) return;
+    setAmount(String(expense.amount));
+    setTitle(expense.title ?? '');
+    setSelectedCatId(expense.category ?? categories[0].id);
+    setSelectedPeople(new Set(
+      (expense.splits ?? [])
+        .map(s => s.user_id)
+        .filter(uid => uid !== currentUserId)
+    ));
+    hydrated.current = true;
+  }, [expense, currentUserId]);
+
   const normalizedAmount = amount.endsWith('.') ? amount.slice(0, -1) : amount;
   const parsedAmount = parseAmount(normalizedAmount);
   const fontSize = amountFontSize(amount.length);
   const splitCount = selectedPeople.size + 1;
   const each = parsedAmount > 0 ? parseFloat((parsedAmount / splitCount).toFixed(2)) : 0;
   const splitText = each > 0
-    ? `Each pays ₹${each.toLocaleString('en-IN')} (${splitCount} people)`
-    : `Split with ${splitCount} people`;
+    ? `Each pays ₹${each.toLocaleString('en-IN')} (${splitCount} ${splitCount === 1 ? 'person' : 'people'})`
+    : `Split with ${splitCount} ${splitCount === 1 ? 'person' : 'people'}`;
 
   const ctaStyle = useAnimatedStyle(() => ({
     transform: [{ scale: ctaScale.value }],
@@ -103,24 +119,46 @@ export default function EditExpenseScreen() {
       withTiming(0.97, { duration: 100 }),
       withTiming(1,    { duration: 120 })
     );
-    const cat = categories.find(c => c.id === selectedCatId) ?? categories[0];
-    const splitMemberIds = [
-      'aryan',
-      ...splitPeople.filter(m => selectedPeople.has(m.id)).map(m => m.id),
-    ];
-    updateExpense(expense.id, {
-      emoji: cat.emoji,
-      title: title.trim(),
-      amount: parsedAmount,
-      category: cat.id,
-      splitWith: splitMemberIds,
-      updatedAt: new Date().toISOString(),
-    });
-    showToast('Changes saved');
-    setTimeout(() => router.back(), 700);
-  }, [expense, normalizedAmount, parsedAmount, title, selectedCatId, selectedPeople, updateExpense, showToast, router, ctaScale]);
 
-  // ── Early return after all hooks ──
+    const splitWith = [
+      expense.paid_by ?? currentUserId,
+      ...Array.from(selectedPeople).filter(id => id !== expense.paid_by),
+    ];
+
+    updateExpense.mutate(
+      {
+        expenseId: expense.id,
+        groupId: expense.group_id,
+        title: title.trim(),
+        amount: parsedAmount,
+        category: selectedCatId,
+        splitWith,
+        paidBy: expense.paid_by ?? currentUserId,
+        note: expense.note,
+      },
+      {
+        onSuccess: () => {
+          showToast('Changes saved');
+          setTimeout(() => router.back(), 600);
+        },
+        onError: (err: any) => {
+          showToast(`Couldn't save: ${err?.message ?? 'try again'}`);
+        },
+      }
+    );
+  }, [expense, normalizedAmount, parsedAmount, title, selectedCatId, selectedPeople, currentUserId, updateExpense, showToast, router, ctaScale]);
+
+  // ── Loading / not-found early returns AFTER hooks ──
+  if (isLoading && !expense) {
+    return (
+      <SafeAreaView style={styles.safe} edges={['top']}>
+        <View style={[styles.notFound, { justifyContent: 'center' }]}>
+          <ActivityIndicator color={colors.text2} />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   if (!expense) {
     return (
       <SafeAreaView style={styles.safe} edges={['top']}>
@@ -228,8 +266,8 @@ export default function EditExpenseScreen() {
                 label={m.name}
                 selected={selectedPeople.has(m.id)}
                 onPress={() => togglePerson(m.id)}
-                initials={m.initials}
-                avatarColor={m.color as any}
+                initials={m.name.slice(0, 2).toUpperCase()}
+                avatarColor={(m.avatar_color ?? 'green') as AvatarColor}
               />
             ))}
           </View>
@@ -238,11 +276,14 @@ export default function EditExpenseScreen() {
 
         {/* Save CTA */}
         <AnimatedTouchable
-          style={[styles.cta, ctaStyle]}
+          style={[styles.cta, ctaStyle, updateExpense.isPending && { opacity: 0.7 }]}
           onPress={handleSave}
           activeOpacity={0.85}
+          disabled={updateExpense.isPending}
         >
-          <Text style={styles.ctaText}>Save Changes →</Text>
+          <Text style={styles.ctaText}>
+            {updateExpense.isPending ? 'Saving…' : 'Save Changes →'}
+          </Text>
         </AnimatedTouchable>
       </ScrollView>
 
@@ -315,40 +356,23 @@ const styles = StyleSheet.create({
     fontWeight: '500', color: colors.text, padding: 0, margin: 0,
   },
   moreCatChip: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 7,
-    borderRadius: 14,
-    backgroundColor: colors.cardElevated,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.11)',
+    alignItems: 'center', justifyContent: 'center',
+    paddingHorizontal: 8, paddingVertical: 7,
+    borderRadius: 14, backgroundColor: colors.cardElevated,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.11)',
     minHeight: 36,
   },
-  moreCatChipSelected: {
-    backgroundColor: colors.accentDim,
-    borderColor: colors.accentMid,
-  },
+  moreCatChipSelected: { backgroundColor: colors.accentDim, borderColor: colors.accentMid },
   moreCatText: {
-    fontFamily: fonts.dmSansSemiBold,
-    fontSize: 11,
-    fontWeight: '600',
-    color: colors.text2,
-    textAlign: 'center',
+    fontFamily: fonts.dmSansSemiBold, fontSize: 11,
+    fontWeight: '600', color: colors.text2, textAlign: 'center',
   },
-  moreCatTextSelected: {
-    color: colors.accent,
-  },
+  moreCatTextSelected: { color: colors.accent },
   fieldError: {
-    fontFamily: fonts.dmSans,
-    fontSize: 11,
-    color: colors.danger,
-    marginTop: 6,
-    paddingLeft: 2,
+    fontFamily: fonts.dmSans, fontSize: 11, color: colors.danger,
+    marginTop: 6, paddingLeft: 2,
   },
-  inputError: {
-    borderColor: colors.danger,
-  },
+  inputError: { borderColor: colors.danger },
   catGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   peopleRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   splitCalc: {

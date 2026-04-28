@@ -1,35 +1,36 @@
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { colors } from '@/constants/colors';
-import { avatarColors } from '@/constants/colors';
+import { colors, avatarColors } from '@/constants/colors';
 import { fonts } from '@/constants/typography';
-import type { Balance, Member } from '@/constants/sampleData';
 import { formatAmount } from '@/constants/amountUtils';
+import { initialsFromName } from '@/constants/dateFormat';
+import type { Balance } from '@/types/database';
 
 interface BalanceRowProps {
-  member: Member;
   balance: Balance;
-  onPay: (member: Member) => void;
+  onPay: (b: Balance) => void;
 }
 
-export function BalanceRow({ member, balance, onPay }: BalanceRowProps) {
-  const avColor = avatarColors[member.color];
+export function BalanceRow({ balance, onPay }: BalanceRowProps) {
+  const avColor = avatarColors[balance.avatarColor] ?? avatarColors.green;
   const owes = balance.amount < 0;
-  const amountStr = (owes ? '−' : '+') + formatAmount(balance.amount);
+  const amountStr = (owes ? '−' : '+') + formatAmount(Math.abs(balance.amount));
 
   return (
     <View style={styles.row}>
       <View style={[styles.avatar, { backgroundColor: avColor.bg }]}>
-        <Text style={[styles.avatarText, { color: avColor.text }]}>{member.initials}</Text>
+        <Text style={[styles.avatarText, { color: avColor.text }]}>
+          {initialsFromName(balance.name)}
+        </Text>
       </View>
       <View style={styles.info}>
-        <Text style={styles.name}>{member.name}</Text>
+        <Text style={styles.name}>{balance.name}</Text>
         <Text style={styles.sub}>{owes ? 'You owe' : 'Owes you'}</Text>
       </View>
       <Text style={[styles.amount, owes ? styles.danger : styles.accent]}>
         {amountStr}
       </Text>
       {owes ? (
-        <TouchableOpacity style={styles.payBtn} onPress={() => onPay(member)}>
+        <TouchableOpacity style={styles.payBtn} onPress={() => onPay(balance)}>
           <Text style={styles.payBtnText}>Pay UPI</Text>
         </TouchableOpacity>
       ) : (
