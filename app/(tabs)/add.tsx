@@ -29,7 +29,7 @@ import { sanitizeAmountInput, isValidAmount, parseAmount, formatAmount } from '@
 import { DEV_USER_ID } from '@/lib/auth';
 import { useGroupStore } from '@/store/useGroupStore';
 import { useUserStore } from '@/store/useUserStore';
-import { useMembers } from '@/hooks/useMembers';
+import { useFriends } from '@/hooks/useFriends';
 import { useAddExpense } from '@/hooks/useExpenses';
 import type { AvatarColor } from '@/types/database';
 
@@ -46,12 +46,12 @@ export default function AddScreen() {
   const router = useRouter();
   const groupId = useGroupStore(s => s.currentGroupId);
   const currentUserId = useUserStore(s => s.currentUserId) ?? DEV_USER_ID;
-  const { data: members = [] } = useMembers(groupId);
+  const { data: friends = [] } = useFriends(currentUserId);
   const addExpense = useAddExpense();
   const { width } = useWindowDimensions();
   const chipWidth = (width - 44 - 16) / 3;
 
-  const splitPeople = members.filter(m => m.id !== currentUserId);
+  const splitPeople = friends;
 
   const [amount, setAmount] = useState('');
   const [title, setTitle] = useState('');

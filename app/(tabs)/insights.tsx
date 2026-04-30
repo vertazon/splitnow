@@ -125,7 +125,11 @@ export default function InsightsScreen() {
 
     const monthExpenses = expenses.filter(e => {
       const d = new Date(e.created_at);
-      return d.getFullYear() === curYear && d.getMonth() === curMonth;
+      const inThisMonth = d.getFullYear() === curYear && d.getMonth() === curMonth;
+      const isInvolved =
+        e.paid_by === currentUserId ||
+        (e.splits ?? []).some(s => s.user_id === currentUserId);
+      return inThisMonth && isInvolved;
     });
 
     const totalMonth = monthExpenses.reduce((s, e) => s + e.amount, 0);

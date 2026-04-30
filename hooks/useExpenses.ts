@@ -34,11 +34,20 @@ export function useExpenses(groupId: string) {
     enabled: !!groupId,
   });
 
-  // Realtime: invalidate on any change to expenses, splits, or comments
+  // Realtime: invalidate on any change to expenses, splits, or comments.
+  // We purge any stale channel with the same name before subscribing — Supabase's
+  // channel() returns the *same* object if the name is already registered, and
+  // calling .on() on an already-subscribed channel throws an error.
   useEffect(() => {
     if (!groupId) return;
+
+    const channelName = `expenses:${groupId}`;
+    supabase.getChannels()
+      .filter(ch => ch.topic === `realtime:${channelName}`)
+      .forEach(ch => supabase.removeChannel(ch));
+
     const channel = supabase
-      .channel(`expenses:${groupId}`)
+      .channel(channelName)
       .on('postgres_changes',
         { event: '*', schema: 'public', table: 'expenses', filter: `group_id=eq.${groupId}` },
         () => qc.invalidateQueries({ queryKey: ['expenses', groupId] })
@@ -56,9 +65,7 @@ export function useExpenses(groupId: string) {
       )
       .subscribe();
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => { supabase.removeChannel(channel); };
   }, [groupId, qc]);
 
   return query;
@@ -115,11 +122,15 @@ async function insertExpenseWithSplits(input: AddExpenseInput) {
 
   if (expErr || !expense) throw expErr ?? new Error('Failed to insert expense');
 
+  // Ensure every participant is a member of the group so they can see this expense.
+  // ignoreDuplicates silently skips rows that already exist.
+  const memberRows = input.splitWith.map((uid) => ({ group_id: input.groupId, user_id: uid }));
+  await supabase.from('group_members').upsert(memberRows, { onConflict: 'group_id,user_id', ignoreDuplicates: true });
+
   const splitRows = input.splitWith.map((uid) => ({
-    expense_id: expense.id,
-    user_id: uid,
+    expense_id:  expense.id,
+    user_id:     uid,
     amount_owed: perHead,
-    settled: uid === input.paidBy, // payer's own row is auto-settled
   }));
 
   const { error: splitErr } = await supabase.from('expense_splits').insert(splitRows);
@@ -179,10 +190,9 @@ export function useUpdateExpense() {
       const splitCount = Math.max(1, input.splitWith.length);
       const perHead = parseFloat((input.amount / splitCount).toFixed(2));
       const splitRows = input.splitWith.map((uid) => ({
-        expense_id: input.expenseId,
-        user_id: uid,
+        expense_id:  input.expenseId,
+        user_id:     uid,
         amount_owed: perHead,
-        settled: uid === input.paidBy,
       }));
       const { error: insErr } = await supabase.from('expense_splits').insert(splitRows);
       if (insErr) throw insErr;

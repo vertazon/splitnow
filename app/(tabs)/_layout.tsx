@@ -67,6 +67,14 @@ export default function TabLayout() {
           ),
         }}
       />
+      <Tabs.Screen
+        name="friends"
+        options={{
+          tabBarIcon: ({ focused }) => (
+            <TabIcon emoji="👥" label="FRIENDS" focused={focused} />
+          ),
+        }}
+      />
       <Tabs.Screen name="explore" options={{ href: null }} />
     </Tabs>
   );

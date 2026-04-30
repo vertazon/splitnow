@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
+import * as Linking from 'expo-linking';
 import { useFonts } from 'expo-font';
 import {
   PlusJakartaSans_400Regular,
@@ -14,6 +15,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from '@/lib/queryClient';
 import { useAuthInit } from '@/hooks/useAuth';
 import { useUserStore } from '@/store/useUserStore';
+import { usePendingInvite } from '@/store/usePendingInvite';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -37,16 +39,62 @@ function AuthGuard() {
     const inTabs  = segments[0] === '(tabs)';
 
     if (!currentUserId) {
-      // Not signed in — go to phone entry
+      // Not signed in — must be on an auth screen
       if (!inAuth) router.replace('/(auth)/phone' as never);
     } else if (!currentUser?.name) {
-      // Signed in but no profile yet — go to profile setup
+      // Signed in but no profile yet — must be on profile setup
       if (segments[1] !== 'profile') router.replace('/(auth)/profile' as never);
     } else {
-      // Fully authenticated — go to tabs
-      if (!inTabs) router.replace('/(tabs)' as never);
+      // Fully authenticated — only redirect if still sitting on an auth screen
+      if (inAuth) router.replace('/(tabs)' as never);
     }
   }, [isLoading, currentUserId, currentUser?.name, segments]);
+
+  return null;
+}
+
+// ─── Deep link capture ────────────────────────────────────────────────────────
+// Runs at all times. Intercepts join/<code> URLs and saves the code to the
+// pending store so it survives an auth redirect (unauthenticated users).
+// Authenticated users are routed directly by Expo Router; this acts as a safety
+// net for the unauthenticated case before AuthGuard fires.
+
+const JOIN_CODE_RE = /^join\/([a-z2-9]{8})$/i;
+
+function DeepLinkCapture() {
+  const url = Linking.useURL();
+
+  useEffect(() => {
+    if (!url) return;
+    try {
+      const parsed = Linking.parse(url);
+      const path = (parsed.path ?? '').replace(/^\//, '');
+      const match = path.match(JOIN_CODE_RE);
+      if (match) {
+        usePendingInvite.getState().setCode(match[1].toLowerCase());
+      }
+    } catch {}
+  }, [url]);
+
+  return null;
+}
+
+// ─── Pending invite processor ─────────────────────────────────────────────────
+// After auth completes, if there is a saved invite code, navigate to the join
+// screen to process the friendship.
+
+function PendingInviteProcessor() {
+  const router        = useRouter();
+  const pendingCode   = usePendingInvite(s => s.pendingCode);
+  const clearCode     = usePendingInvite(s => s.clearCode);
+  const currentUserId = useUserStore(s => s.currentUserId);
+  const hasProfile    = useUserStore(s => !!s.currentUser?.name);
+
+  useEffect(() => {
+    if (!pendingCode || !currentUserId || !hasProfile) return;
+    clearCode();
+    router.push(`/join/${pendingCode}` as never);
+  }, [pendingCode, currentUserId, hasProfile]);
 
   return null;
 }
@@ -79,12 +127,17 @@ export default function RootLayout() {
   return (
     <QueryClientProvider client={queryClient}>
       <StatusBar style="light" backgroundColor="#0D0D0D" />
+      <DeepLinkCapture />
       <AuthGuard />
+      <PendingInviteProcessor />
       <Stack screenOptions={{ headerShown: false, animation: 'fade' }}>
-        <Stack.Screen name="(auth)"         options={{ animation: 'none' }} />
-        <Stack.Screen name="(tabs)"         options={{ animation: 'none' }} />
+        <Stack.Screen name="(auth)"            options={{ animation: 'none' }} />
+        <Stack.Screen name="(tabs)"            options={{ animation: 'none' }} />
+        <Stack.Screen name="profile"           options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+        <Stack.Screen name="expenses" />
         <Stack.Screen name="expense/[id]" />
         <Stack.Screen name="expense/edit/[id]" />
+        <Stack.Screen name="join/[code]"       options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
       </Stack>
     </QueryClientProvider>
   );

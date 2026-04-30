@@ -28,47 +28,27 @@ export interface SettleUpInput {
 }
 
 /**
- * Marks all unsettled splits between the current user and `toUserId` as settled,
- * then records a settlement row for the audit trail.
+ * Records a payment from the current user to toUserId.
+ * Balance is recomputed from splits vs settlements — no split rows are mutated.
  */
 export function useSettleUp() {
   const qc = useQueryClient();
-  // Read once at call time — this value won't change during the mutation
   const currentUserId = useUserStore.getState().currentUserId ?? DEV_USER_ID;
 
   return useMutation({
     mutationFn: async (input: SettleUpInput) => {
-      const { data: splits, error: fetchErr } = await supabase
-        .from('expense_splits')
-        .select('id, expense:expenses!inner(paid_by, group_id)')
-        .eq('user_id', currentUserId)
-        .eq('settled', false)
-        .eq('expense.group_id', input.groupId)
-        .eq('expense.paid_by', input.toUserId);
-
-      if (fetchErr) throw fetchErr;
-
-      const ids = (splits ?? []).map((s: any) => s.id as string);
-      if (ids.length > 0) {
-        const { error: updErr } = await supabase
-          .from('expense_splits')
-          .update({ settled: true })
-          .in('id', ids);
-        if (updErr) throw updErr;
-      }
-
-      const { error: insErr } = await supabase.from('settlements').insert({
-        group_id: input.groupId,
+      const { error } = await supabase.from('settlements').insert({
+        group_id:  input.groupId,
         from_user: currentUserId,
-        to_user: input.toUserId,
-        amount: input.amount,
-        upi_ref: input.upiRef ?? null,
+        to_user:   input.toUserId,
+        amount:    input.amount,
+        upi_ref:   input.upiRef ?? null,
+        status:    'completed',
       });
-      if (insErr) throw insErr;
+      if (error) throw error;
     },
     onSuccess: (_d, vars) => {
       qc.invalidateQueries({ queryKey: ['balances', vars.groupId] });
-      qc.invalidateQueries({ queryKey: ['expenses', vars.groupId] });
       qc.invalidateQueries({ queryKey: ['settlements', vars.groupId] });
     },
   });

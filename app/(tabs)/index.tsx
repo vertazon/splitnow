@@ -13,9 +13,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { colors, avatarColors } from '@/constants/colors';
 import { fonts } from '@/constants/typography';
-import { categories } from '@/constants/sampleData';
 import { formatAmount } from '@/constants/amountUtils';
-import { formatActivityDate, initialsFromName } from '@/constants/dateFormat';
+import { initialsFromName } from '@/constants/dateFormat';
 import type { Balance, AvatarColor } from '@/types/database';
 import { DEV_USER_ID } from '@/lib/auth';
 import { useUserStore } from '@/store/useUserStore';
@@ -25,227 +24,8 @@ import { useBalances } from '@/hooks/useBalances';
 import { useMembers } from '@/hooks/useMembers';
 import { BalanceRow } from '@/components/BalanceCard';
 import { ToastNotification } from '@/components/ToastNotification';
-
-// ─── Mini avatar strip ────────────────────────────────────────────────────────
-
-interface MemberLite { id: string; name: string; color: AvatarColor; }
-
-function MiniAvatars({
-  userIds,
-  memberMap,
-  maxShow = 3,
-}: {
-  userIds: string[];
-  memberMap: Map<string, MemberLite>;
-  maxShow?: number;
-}) {
-  const visible = userIds.slice(0, maxShow);
-  const overflow = userIds.length - maxShow;
-  return (
-    <View style={miniStyles.row}>
-      {visible.map((uid, i) => {
-        const m = memberMap.get(uid);
-        if (!m) return null;
-        const av = avatarColors[m.color] ?? avatarColors.green;
-        return (
-          <View
-            key={uid}
-            style={[
-              miniStyles.dot,
-              { backgroundColor: av.bg, marginLeft: i === 0 ? 0 : -5 },
-            ]}
-          >
-            <Text style={[miniStyles.text, { color: av.text }]}>
-              {initialsFromName(m.name)}
-            </Text>
-          </View>
-        );
-      })}
-      {overflow > 0 && (
-        <View style={[miniStyles.dot, { backgroundColor: colors.cardElevated, marginLeft: -5 }]}>
-          <Text style={[miniStyles.text, { color: colors.text2 }]}>+{overflow}</Text>
-        </View>
-      )}
-    </View>
-  );
-}
-
-const miniStyles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center' },
-  dot: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: colors.card,
-  },
-  text: {
-    fontFamily: fonts.dmSansSemiBold,
-    fontSize: 7,
-    fontWeight: '700',
-  },
-});
-
-// ─── Net balance logic ────────────────────────────────────────────────────────
-
-type NetType = 'lent' | 'owed' | 'personal';
-
-function getNetBalance(exp: ExpenseWithSplits, userId: string): { type: NetType; amount: number } {
-  const splits = exp.splits ?? [];
-  const otherSplits = splits.filter(s => s.user_id !== userId);
-  const myShare = splits.find(s => s.user_id === userId)?.amount_owed ?? 0;
-
-  if (otherSplits.length === 0) return { type: 'personal', amount: exp.amount };
-
-  if (exp.paid_by === userId) {
-    // I paid; others owe me their shares
-    const lent = otherSplits.reduce((sum, s) => sum + s.amount_owed, 0);
-    return { type: 'lent', amount: parseFloat(lent.toFixed(2)) };
-  }
-
-  // Someone else paid; I owe my share
-  return { type: 'owed', amount: parseFloat(myShare.toFixed(2)) };
-}
-
-const NET_COLORS: Record<NetType, { main: string; dim: string }> = {
-  lent:     { main: colors.accent, dim: 'rgba(0,212,154,0.55)' },
-  owed:     { main: colors.danger, dim: 'rgba(255,89,89,0.55)' },
-  personal: { main: colors.text,   dim: colors.text3           },
-};
-
-const NET_LABELS: Record<NetType, string> = {
-  lent: 'you lent',
-  owed: 'you owe',
-  personal: '',
-};
-
-// ─── Activity row ─────────────────────────────────────────────────────────────
-
-function ActivityRow({
-  exp,
-  memberMap,
-  currentUserId,
-  onPress,
-}: {
-  exp: ExpenseWithSplits;
-  memberMap: Map<string, MemberLite>;
-  currentUserId: string;
-  onPress: () => void;
-}) {
-  const cat = categories.find(c => c.id === exp.category);
-  const emoji = cat?.emoji ?? '📦';
-  const net = getNetBalance(exp, currentUserId);
-  const netColor = NET_COLORS[net.type];
-  const isPersonal = net.type === 'personal';
-
-  const payerLabel = exp.paid_by === currentUserId
-    ? 'You'
-    : memberMap.get(exp.paid_by ?? '')?.name ?? '';
-
-  const splitUserIds = (exp.splits ?? []).map(s => s.user_id);
-  const dateStr = formatActivityDate(exp.created_at);
-
-  return (
-    <TouchableOpacity onPress={onPress} activeOpacity={0.65}>
-      <View style={rowStyles.row}>
-        {/* Icon */}
-        <View style={rowStyles.iconBox}>
-          <Text style={{ fontSize: 18 }}>{emoji}</Text>
-        </View>
-
-        {/* Info */}
-        <View style={rowStyles.info}>
-          <Text style={rowStyles.title} numberOfLines={1}>{exp.title}</Text>
-
-          {/* Line 2: date · category */}
-          <View style={rowStyles.meta}>
-            <Text style={rowStyles.date}>{dateStr}</Text>
-            {cat && <Text style={rowStyles.catLabel}> · {cat.label}</Text>}
-          </View>
-
-          {/* Line 3: who paid · total · avatars (shared expenses only) */}
-          {!isPersonal && splitUserIds.length > 1 && (
-            <View style={rowStyles.splitMeta}>
-              <Text style={rowStyles.payerText} numberOfLines={1}>
-                {payerLabel} paid {formatAmount(exp.amount)}
-              </Text>
-              <MiniAvatars userIds={splitUserIds} memberMap={memberMap} maxShow={3} />
-            </View>
-          )}
-        </View>
-
-        {/* Net balance */}
-        <View style={rowStyles.right}>
-          <Text style={[rowStyles.netAmount, { color: netColor.main }]}>
-            {net.type === 'owed' ? '−' : net.type === 'lent' ? '+' : ''}
-            {formatAmount(net.amount)}
-          </Text>
-          {NET_LABELS[net.type] !== '' && (
-            <Text style={[rowStyles.netLabel, { color: netColor.dim }]}>
-              {NET_LABELS[net.type]}
-            </Text>
-          )}
-        </View>
-
-        {/* Chevron */}
-        <Text style={rowStyles.chevron}>›</Text>
-      </View>
-    </TouchableOpacity>
-  );
-}
-
-const rowStyles = StyleSheet.create({
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 11,
-    gap: 10,
-  },
-  iconBox: {
-    width: 40,
-    height: 40,
-    borderRadius: 13,
-    backgroundColor: colors.cardElevated,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-  },
-  info: { flex: 1, minWidth: 0 },
-  title: {
-    fontFamily: fonts.dmSansSemiBold,
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.text,
-    marginBottom: 3,
-  },
-  meta: { flexDirection: 'row', alignItems: 'center' },
-  date: { fontFamily: fonts.dmSans, fontSize: 11, color: colors.text2 },
-  catLabel: { fontFamily: fonts.dmSans, fontSize: 11, color: colors.text3 },
-  splitMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: 5,
-  },
-  payerText: {
-    fontFamily: fonts.dmSans,
-    fontSize: 11,
-    color: colors.text3,
-    flexShrink: 1,
-  },
-  right: { alignItems: 'flex-end', flexShrink: 0, minWidth: 68 },
-  netAmount: {
-    fontFamily: fonts.syne,
-    fontSize: 14,
-    fontWeight: '800',
-    marginBottom: 2,
-  },
-  netLabel: { fontFamily: fonts.dmSans, fontSize: 10, fontWeight: '400' },
-  chevron: { fontSize: 18, color: colors.text3, flexShrink: 0, marginLeft: -4 },
-});
+import { ActivityRow } from '@/components/ActivityRow';
+import type { MemberLite } from '@/components/ActivityRow';
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
@@ -280,7 +60,7 @@ export default function HomeScreen() {
 
   // Map for fast lookup inside ActivityRow + MiniAvatars
   const memberMap = new Map<string, MemberLite>(
-    members.map(m => [m.id, { id: m.id, name: m.name, color: (m.avatar_color ?? 'green') as AvatarColor }])
+    members.map(m => [m.id, { id: m.id, name: m.name ?? m.id, color: (m.avatar_color ?? 'green') as AvatarColor }])
   );
 
   const netAmt = balances.reduce((s, b) => s + b.amount, 0);
@@ -312,9 +92,14 @@ export default function HomeScreen() {
               {new Date().toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}
             </Text>
           </View>
-          <View style={[styles.avatar, { backgroundColor: av.bg }]}>
-            <Text style={[styles.avatarText, { color: av.text }]}>{userInitials}</Text>
-          </View>
+          <TouchableOpacity
+            onPress={() => router.push('/profile' as never)}
+            activeOpacity={0.75}
+          >
+            <View style={[styles.avatar, { backgroundColor: av.bg }]}>
+              <Text style={[styles.avatarText, { color: av.text }]}>{userInitials}</Text>
+            </View>
+          </TouchableOpacity>
         </View>
 
         {/* Net Balance Card */}
@@ -355,7 +140,14 @@ export default function HomeScreen() {
 
         {/* Recent Activity */}
         <View style={styles.section}>
-          <Text style={styles.sectionLabel}>RECENT ACTIVITY</Text>
+          <View style={styles.sectionHeader}>
+            <Text style={[styles.sectionLabel, { marginBottom: 0 }]}>RECENT ACTIVITY</Text>
+            {expenses.length > 5 && (
+              <TouchableOpacity onPress={() => router.push('/expenses' as never)} activeOpacity={0.7}>
+                <Text style={styles.seeAll}>See all ({expenses.length}) →</Text>
+              </TouchableOpacity>
+            )}
+          </View>
           {isLoading && expenses.length === 0 ? (
             <View style={[styles.card, styles.loadingCard]}>
               <ActivityIndicator color={colors.text2} />
@@ -470,6 +262,18 @@ const styles = StyleSheet.create({
     color: colors.text2,
   },
   section: { marginBottom: 16 },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  seeAll: {
+    fontFamily: fonts.dmSansSemiBold,
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.accent,
+  },
   divider: {
     height: 1,
     backgroundColor: colors.border,

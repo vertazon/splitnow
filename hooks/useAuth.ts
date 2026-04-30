@@ -8,9 +8,18 @@
 import { useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useUserStore } from '@/store/useUserStore';
+import { useGroupStore } from '@/store/useGroupStore';
+import { queryClient } from '@/lib/queryClient';
 import type { User } from '@/types/database';
 
 // ─── Session bootstrap ────────────────────────────────────────────────────────
+
+/** Wipes all user-scoped state so the next user starts completely clean. */
+function clearSession() {
+  useUserStore.getState().clearUser();
+  useGroupStore.getState().clearGroup();
+  queryClient.clear();
+}
 
 /** Fetch the public.users profile for a given auth UID. */
 async function fetchProfile(userId: string): Promise<User | null> {
@@ -30,11 +39,61 @@ async function fetchProfile(userId: string): Promise<User | null> {
 }
 
 /**
+ * Find the user's primary group; create one if none exists yet.
+ *
+ * When the user is in multiple groups (e.g. their own solo group + a shared
+ * group they were added to via a split), prefer the group with the most
+ * members — that's the active shared group where expenses actually live.
+ */
+async function fetchOrCreateUserGroup(userId: string, userName: string): Promise<void> {
+  const { data: memberships } = await supabase
+    .from('group_members')
+    .select('group_id')
+    .eq('user_id', userId);
+
+  if (memberships && memberships.length > 0) {
+    if (memberships.length === 1) {
+      useGroupStore.getState().setCurrentGroupId(memberships[0].group_id);
+      return;
+    }
+
+    // Multiple groups — pick the one with the most members (most active / shared)
+    const counts = await Promise.all(
+      memberships.map(async (m) => {
+        const { count } = await supabase
+          .from('group_members')
+          .select('*', { count: 'exact', head: true })
+          .eq('group_id', m.group_id);
+        return { group_id: m.group_id, count: count ?? 0 };
+      })
+    );
+    const best = counts.sort((a, b) => b.count - a.count)[0];
+    useGroupStore.getState().setCurrentGroupId(best.group_id);
+    return;
+  }
+
+  // No group yet — create a default one for this user
+  const { data: group, error } = await supabase
+    .from('groups')
+    .insert({ name: `${userName}'s Group`, created_by: userId })
+    .select('id')
+    .single();
+
+  if (error || !group) {
+    console.error('[fetchOrCreateUserGroup] failed to create group:', error);
+    return;
+  }
+
+  await supabase.from('group_members').insert({ group_id: group.id, user_id: userId });
+  useGroupStore.getState().setCurrentGroupId(group.id);
+}
+
+/**
  * Mount this once in `app/_layout.tsx`.
  * Resolves the session on startup and keeps the store updated on sign-in / sign-out.
  */
 export function useAuthInit() {
-  const { setCurrentUser, setCurrentUserId, setLoading, clearUser } = useUserStore();
+  const { setCurrentUser, setCurrentUserId, setLoading } = useUserStore();
 
   useEffect(() => {
     // 1. Read whatever is already in AsyncStorage (instant, no network round-trip)
@@ -42,9 +101,15 @@ export function useAuthInit() {
       if (session?.user) {
         setCurrentUserId(session.user.id);
         const profile = await fetchProfile(session.user.id);
-        setCurrentUser(profile);
+        // Only overwrite the store when a profile row exists. Calling
+        // setCurrentUser(null) would clear currentUserId via the store setter,
+        // breaking the profile-setup screen for brand-new users.
+        if (profile) {
+          setCurrentUser(profile);
+          await fetchOrCreateUserGroup(session.user.id, profile.name);
+        }
       } else {
-        clearUser();
+        clearSession();
       }
       setLoading(false);
     });
@@ -57,10 +122,15 @@ export function useAuthInit() {
           // Re-fetch profile on sign-in; token refresh doesn't change the profile.
           if (event === 'SIGNED_IN') {
             const profile = await fetchProfile(session.user.id);
-            setCurrentUser(profile);
+            // Same guard: don't call setCurrentUser(null) for new users who
+            // haven't completed profile setup yet — it would wipe currentUserId.
+            if (profile) {
+              setCurrentUser(profile);
+              await fetchOrCreateUserGroup(session.user.id, profile.name);
+            }
           }
         } else {
-          clearUser();
+          clearSession();
           setLoading(false);
         }
       },
@@ -148,11 +218,12 @@ export async function saveProfile(
   }
 
   useUserStore.getState().setCurrentUser(fresh);
+  await fetchOrCreateUserGroup(userId, fresh.name);
   return { error: null };
 }
 
 /** Sign out and clear all local state. */
 export async function signOut(): Promise<void> {
   await supabase.auth.signOut();
-  useUserStore.getState().clearUser();
+  clearSession();
 }
