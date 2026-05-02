@@ -3,69 +3,57 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>SplitNow</title>
+<title>SplitNow — UI Reference</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 html, body {
   height: 100%; min-height: 100vh;
   background: #080808;
-  display: flex; align-items: center; justify-content: center;
+  display: flex; align-items: flex-start; justify-content: center;
   font-family: 'Plus Jakarta Sans', sans-serif;
-  overflow-x: hidden;
+  padding: 40px 24px;
 }
 
 :root {
-  --bg: #0A0A0A; --bg2: #111;
-  --card: #141414; --card2: #1C1C1C;
-  --border: rgba(255,255,255,0.07);
-  --border2: rgba(255,255,255,0.11);
+  --bg: #0D0D0D; --card: #161616; --card2: #1C1C1C;
+  --border: rgba(255,255,255,0.07); --border2: rgba(255,255,255,0.11);
   --accent: #00D49A;
-  --accent-dim: rgba(0,212,154,0.1);
-  --accent-mid: rgba(0,212,154,0.22);
+  --accent-dim: rgba(0,212,154,0.10); --accent-mid: rgba(0,212,154,0.22);
   --text: #F2F2F2; --text2: #888; --text3: #4A4A4A;
-  --danger: #FF5959; --danger-dim: rgba(255,89,89,0.1);
+  --danger: #FF5959;
+  --danger-dim: rgba(255,89,89,0.10); --danger-border: rgba(255,89,89,0.18);
   --blue: #5B9FFF; --purple: #A87CFF; --orange: #FF9A3C;
 }
 
-.wrapper {
-  display: flex; gap: 48px; align-items: flex-start;
-  padding: 40px; max-width: 960px; width: 100%;
-}
+/* ── Layout ── */
+.wrapper { display: flex; gap: 48px; align-items: flex-start; max-width: 1000px; width: 100%; }
+.info { flex: 1; max-width: 340px; padding-top: 8px; }
 
-/* ── PHONE ── */
+/* ── Phone shell ── */
 .phone {
-  width: 375px; height: 800px;
+  width: 375px; min-height: 812px;
   background: var(--bg); border-radius: 50px;
   position: relative; overflow: hidden;
   border: 1.5px solid rgba(255,255,255,0.09);
-  box-shadow:
-    0 0 0 7px #0D0D0D,
-    0 0 0 8px rgba(255,255,255,0.04),
-    0 50px 100px rgba(0,0,0,0.85),
-    0 20px 40px rgba(0,0,0,0.5);
+  box-shadow: 0 0 0 7px #0D0D0D, 0 0 0 8px rgba(255,255,255,0.04),
+              0 50px 100px rgba(0,0,0,0.85), 0 20px 40px rgba(0,0,0,0.5);
   flex-shrink: 0;
 }
 .phone::before {
-  content: ''; position: absolute;
-  top: 0; left: 50%; transform: translateX(-50%);
-  width: 126px; height: 36px;
-  background: #090909;
-  border-radius: 0 0 22px 22px;
+  content: ''; position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+  width: 126px; height: 36px; background: #090909; border-radius: 0 0 22px 22px;
   z-index: 100;
   border-bottom: 1px solid rgba(255,255,255,0.05);
   border-left: 1px solid rgba(255,255,255,0.05);
   border-right: 1px solid rgba(255,255,255,0.05);
 }
 
-.screen {
-  position: absolute; inset: 0;
-  display: flex; flex-direction: column;
-  opacity: 0; pointer-events: none;
-  transition: opacity 0.18s ease;
-}
-.screen.active { opacity: 1; pointer-events: all; }
+/* ── Screen visibility ── */
+.screen { display: none; flex-direction: column; min-height: 812px; }
+.screen.active { display: flex; }
 
+/* ── Status bar ── */
 .status {
   padding: 44px 24px 0;
   display: flex; justify-content: space-between; align-items: center;
@@ -76,547 +64,862 @@ html, body {
 .s-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--text3); }
 .s-dot.on { background: var(--accent); }
 
+/* ── Scroll area ── */
 .scroll { flex: 1; overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; }
 .scroll::-webkit-scrollbar { display: none; }
 
+/* ── Tab bar ── */
 .tabs {
   display: flex; background: rgba(12,12,12,0.97);
   border-top: 1px solid var(--border);
   padding: 10px 0 26px; flex-shrink: 0;
+  backdrop-filter: blur(20px);
 }
 .tab {
-  flex: 1; display: flex; flex-direction: column;
-  align-items: center; gap: 4px; cursor: pointer;
-  padding: 4px 0; transition: all 0.15s; position: relative;
+  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px;
+  cursor: pointer; padding: 4px 0; background: none; border: none; position: relative;
 }
-.tab-i { font-size: 20px; line-height: 1; transition: transform 0.15s; }
-.tab-l { font-size: 9px; font-weight: 700; color: var(--text3); letter-spacing: 0.5px; text-transform: uppercase; transition: color 0.15s; }
+.tab-i { font-size: 20px; line-height: 1; }
+.tab-l { font-size: 9px; font-weight: 700; color: var(--text3); letter-spacing: 0.5px; text-transform: uppercase; }
 .tab.active .tab-l { color: var(--accent); }
-.tab.active .tab-i { transform: translateY(-1px); }
-.t-pip { position: absolute; bottom: -4px; width: 4px; height: 4px; border-radius: 50%; background: var(--accent); opacity: 0; transition: opacity 0.15s; }
+.t-pip { width: 4px; height: 4px; border-radius: 50%; background: var(--accent); opacity: 0; }
 .tab.active .t-pip { opacity: 1; }
 
-/* HOME */
-.home-hdr { padding: 16px 22px 0; display: flex; justify-content: space-between; align-items: flex-start; }
-.greet { font-size: 26px; font-weight: 800; color: var(--text); line-height: 1.1; }
-.greet span { color: var(--accent); }
-.av-me {
-  width: 44px; height: 44px; border-radius: 50%;
-  background: var(--accent-dim); border: 1.5px solid var(--accent-mid);
+/* ── Stack header ── */
+.stack-hdr {
+  display: flex; align-items: center; padding: 12px 16px;
+  border-bottom: 1px solid var(--border); flex-shrink: 0; gap: 0;
+}
+.back-btn {
+  width: 36px; height: 36px; border-radius: 12px;
+  background: var(--card2); border: 1px solid var(--border);
   display: flex; align-items: center; justify-content: center;
-  font-size: 14px; font-weight: 800; color: var(--accent);
-  cursor: pointer; flex-shrink: 0;
+  cursor: pointer; font-size: 18px; color: var(--text);
+  font-family: 'Plus Jakarta Sans', sans-serif; flex-shrink: 0;
 }
+.stack-title {
+  flex: 1; text-align: center; font-size: 17px; font-weight: 800; color: var(--text);
+}
+.stack-spacer { width: 36px; }
 
-.bal-card {
-  margin: 16px 22px 0;
-  background: linear-gradient(150deg, #001F16, #001209);
-  border-radius: 26px; padding: 22px;
-  border: 1px solid rgba(0,212,154,0.18);
-  position: relative; overflow: hidden;
-}
-.bal-card::after {
-  content: ''; position: absolute;
-  right: -30px; top: -30px;
-  width: 130px; height: 130px; border-radius: 50%;
-  background: radial-gradient(circle, rgba(0,212,154,0.07), transparent 70%);
-}
-.bc-lbl { font-size: 10px; font-weight: 700; color: rgba(0,212,154,0.45); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 5px; }
-.bc-amt { font-size: 44px; font-weight: 800; color: var(--accent); letter-spacing: -1.5px; line-height: 1; }
-.bc-sub { font-size: 12px; color: rgba(0,212,154,0.35); margin-top: 5px; }
-.bc-pills { display: flex; gap: 8px; margin-top: 14px; }
-.bc-pill { background: rgba(0,212,154,0.07); border: 1px solid rgba(0,212,154,0.14); border-radius: 20px; padding: 5px 12px; font-size: 11px; font-weight: 500; color: rgba(0,212,154,0.6); }
+/* ── Shared components ── */
+.card { background: var(--card); border-radius: 22px; border: 1px solid var(--border); padding: 18px; }
+.card-flush { padding: 4px 0; }
+.lbl { font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--text2); margin-bottom: 10px; }
+.divider { height: 1px; background: var(--border); margin: 0 16px; }
+.row { display: flex; align-items: center; padding: 12px 16px; gap: 12px; }
+.row-name { font-size: 13px; font-weight: 600; color: var(--text); flex: 1; }
+.row-sub { font-size: 11px; color: var(--text2); margin-top: 1px; }
 
-/* Quick Add */
-.qa {
-  margin: 14px 22px 0;
-  background: var(--card); border-radius: 22px;
-  padding: 16px; border: 1px solid var(--border2);
+.avatar {
+  width: 38px; height: 38px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 700; flex-shrink: 0;
 }
-.qa-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
-.qa-badge { display: flex; align-items: center; gap: 6px; font-size: 10px; font-weight: 700; color: var(--accent); letter-spacing: .8px; text-transform: uppercase; }
-.qa-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); animation: blink 2.2s infinite; }
-@keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
-.qa-hint { font-size: 10px; color: var(--text3); }
-.qa-row { display: flex; align-items: center; gap: 8px; }
-.qa-input {
+.av-g  { background: rgba(0,212,154,0.10); color: var(--accent); }
+.av-b  { background: rgba(91,159,255,0.10); color: var(--blue); }
+.av-p  { background: rgba(168,124,255,0.10); color: var(--purple); }
+.av-o  { background: rgba(255,154,60,0.10); color: var(--orange); }
+
+.chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 7px 13px; border-radius: 20px;
   background: var(--card2); border: 1.5px solid var(--border2);
-  border-radius: 14px; color: var(--text);
+  font-size: 12px; font-weight: 600; color: var(--text);
+  cursor: pointer; transition: all 0.12s; white-space: nowrap;
   font-family: 'Plus Jakarta Sans', sans-serif;
-  font-size: 20px; font-weight: 800;
-  padding: 10px 14px; width: 108px; outline: none;
-  transition: border-color .15s;
 }
-.qa-input:focus { border-color: var(--accent); }
-.qa-chip {
-  background: var(--card2); border: 1.5px solid var(--border2);
-  border-radius: 12px; padding: 10px 14px;
-  font-size: 13px; font-weight: 600; color: var(--text);
-  cursor: pointer; transition: all .12s; user-select: none; white-space: nowrap;
-}
-.qa-chip:active { transform: scale(.95); background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
-.qa-btn {
-  width: 44px; height: 44px; border-radius: 13px;
-  background: var(--accent); border: none;
-  color: #000; font-size: 26px; font-weight: 700;
-  cursor: pointer; display: flex; align-items: center; justify-content: center;
-  margin-left: auto; flex-shrink: 0;
-  transition: transform .12s, box-shadow .12s;
-  box-shadow: 0 4px 18px rgba(0,212,154,.28);
-}
-.qa-btn:active { transform: scale(.9); box-shadow: 0 2px 8px rgba(0,212,154,.15); }
-.qa-ppl { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
-.qa-pc {
-  background: var(--card2); border: 1.5px solid var(--border);
-  border-radius: 20px; padding: 5px 12px;
-  font-size: 12px; font-weight: 600; color: var(--text2);
-  cursor: pointer; transition: all .12s; user-select: none;
-}
-.qa-pc.on { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
-.qa-pc:active { transform: scale(.95); }
+.chip.on { background: var(--accent-dim); border-color: var(--accent-mid); color: var(--accent); }
+.chip:active { transform: scale(0.95); }
 
-.sh { padding: 18px 22px 8px; font-size: 10px; font-weight: 700; color: var(--text3); letter-spacing: 1px; text-transform: uppercase; display: flex; justify-content: space-between; align-items: center; }
-.sh a { font-size: 10px; color: var(--accent); cursor: pointer; font-weight: 600; }
-
-.list { margin: 0 22px; background: var(--card); border-radius: 20px; border: 1px solid var(--border); overflow: hidden; }
-.row { display: flex; align-items: center; padding: 13px 16px; gap: 11px; cursor: pointer; transition: background .12s; }
-.row:not(:last-child) { border-bottom: 1px solid var(--border); }
-.row:active { background: var(--card2); }
-
-.av { width: 38px; height: 38px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 800; flex-shrink: 0; }
-.ag { background: rgba(0,212,154,.1); color: var(--accent); }
-.ab { background: rgba(91,159,255,.1); color: var(--blue); }
-.ap { background: rgba(168,124,255,.1); color: var(--purple); }
-.ao { background: rgba(255,154,60,.1); color: var(--orange); }
-
-.row-name { font-size: 14px; font-weight: 600; color: var(--text); flex: 1; }
-.r-amt { font-size: 14px; font-weight: 700; }
-.owe { color: var(--danger); }
-.owed { color: var(--accent); }
-.pbtn {
-  background: var(--card2); border: 1px solid var(--border2);
-  border-radius: 10px; color: var(--text2);
-  font-size: 11px; font-weight: 700; padding: 6px 12px;
-  cursor: pointer; font-family: 'Plus Jakarta Sans', sans-serif; transition: all .12s;
-}
-.pbtn:active { background: var(--accent); color: #000; border-color: var(--accent); transform: scale(.95); }
-
-.act-ico { width: 38px; height: 38px; border-radius: 12px; background: var(--card2); display: flex; align-items: center; justify-content: center; font-size: 17px; flex-shrink: 0; border: 1px solid var(--border); }
-.act-inf { flex: 1; }
-.act-t { font-size: 13px; font-weight: 600; color: var(--text); }
-.act-m { font-size: 11px; color: var(--text3); margin-top: 2px; }
-.act-a { font-size: 14px; font-weight: 700; }
-.aneg { color: var(--danger); }
-.apos { color: var(--accent); }
-
-/* ADD */
-.add-hdr { padding: 14px 22px 0; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
-.add-ttl { font-size: 24px; font-weight: 800; color: var(--text); }
-.cxbtn {
-  background: var(--card2); border: 1px solid var(--border2);
-  border-radius: 12px; padding: 8px 16px;
-  font-size: 13px; font-weight: 500; color: var(--text2);
-  cursor: pointer; font-family: 'Plus Jakarta Sans', sans-serif; transition: all .12s;
-}
-.cxbtn:active { transform: scale(.95); }
-.big-wrap { display: flex; align-items: baseline; justify-content: center; padding: 22px 20px 8px; gap: 3px; }
-.rupee { font-size: 30px; font-weight: 800; color: var(--text2); }
-.big-in {
-  font-family: 'Plus Jakarta Sans', sans-serif;
-  font-size: 58px; font-weight: 800;
-  color: var(--text); letter-spacing: -2px;
-  background: transparent; border: none; outline: none;
-  width: 220px; text-align: center;
-}
-.big-in::placeholder { color: #222; }
-.divl { height: 1px; background: var(--border); margin: 0 22px; }
-.add-sec { padding: 14px 22px 0; }
-.add-lbl { font-size: 10px; font-weight: 700; color: var(--text3); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 10px; }
-.cat-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; }
-.cat-it {
-  background: var(--card); border: 1.5px solid var(--border);
-  border-radius: 16px; padding: 14px 8px 10px;
-  display: flex; flex-direction: column; align-items: center; gap: 5px;
-  cursor: pointer; transition: all .12s; user-select: none;
-}
-.cat-it:active { transform: scale(.95); }
-.cat-it.on { background: var(--accent-dim); border-color: var(--accent); }
-.ce { font-size: 24px; line-height: 1; }
-.cn { font-size: 10px; font-weight: 700; color: var(--text2); }
-.cat-it.on .cn { color: var(--accent); }
-
-.ppl-chips { display: flex; gap: 8px; flex-wrap: wrap; }
-.pch {
-  display: flex; align-items: center; gap: 8px;
-  background: var(--card); border: 1.5px solid var(--border);
-  border-radius: 20px; padding: 8px 16px;
-  cursor: pointer; transition: all .12s; user-select: none;
-}
-.pch.on { background: var(--accent-dim); border-color: var(--accent); }
-.pch:active { transform: scale(.95); }
-.pdot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-.pn { font-size: 13px; font-weight: 600; color: var(--text2); }
-.pch.on .pn { color: var(--accent); }
-
-.split-row { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px 22px 0; font-size: 12px; color: var(--text3); }
-.split-pill { background: var(--accent-dim); border: 1px solid var(--accent-mid); border-radius: 20px; padding: 4px 12px; font-size: 12px; font-weight: 700; color: var(--accent); }
-
-.add-cta {
-  margin: 14px 22px 0; width: calc(100% - 44px);
-  background: var(--accent); border: none; border-radius: 18px;
-  padding: 18px; font-family: 'Plus Jakarta Sans', sans-serif;
-  font-size: 16px; font-weight: 700; color: #000;
-  cursor: pointer; transition: transform .12s, box-shadow .12s;
-  box-shadow: 0 6px 24px rgba(0,212,154,.28);
-  display: flex; align-items: center; justify-content: center; gap: 8px;
-}
-.add-cta:active { transform: scale(.97); box-shadow: 0 3px 12px rgba(0,212,154,.15); }
-
-/* SETTLE */
-.stle-hero {
-  margin: 14px 22px 0;
-  background: linear-gradient(150deg, #1A0A0A, #120808);
-  border-radius: 26px; padding: 20px;
-  border: 1px solid rgba(255,89,89,.15);
-}
-.sh-lbl { font-size: 10px; font-weight: 700; color: rgba(255,89,89,.45); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 4px; }
-.sh-amt { font-size: 40px; font-weight: 800; color: var(--danger); letter-spacing: -1.5px; }
-.sh-sub { font-size: 12px; color: rgba(255,89,89,.35); margin-top: 4px; margin-bottom: 16px; }
-.stle-all {
-  width: 100%; background: var(--danger); border: none; border-radius: 14px;
-  padding: 14px; font-family: 'Plus Jakarta Sans', sans-serif;
-  font-size: 15px; font-weight: 700; color: #fff;
-  cursor: pointer; transition: transform .12s;
-  box-shadow: 0 4px 18px rgba(255,89,89,.22);
-  display: flex; align-items: center; justify-content: center; gap: 6px;
-}
-.stle-all:active { transform: scale(.97); }
-
-.sug-row { display: flex; align-items: center; padding: 13px 16px; gap: 10px; }
-.sug-row:not(:last-child) { border-bottom: 1px solid var(--border); }
-.sarw { color: var(--text3); font-size: 14px; }
-.sug-n { font-size: 14px; font-weight: 600; color: var(--text); flex: 1; margin-left: 4px; }
-.sug-a { font-size: 15px; font-weight: 700; color: var(--danger); margin-right: 6px; }
-.upibtn {
-  background: transparent; border: 1.5px solid rgba(0,212,154,.28);
+.settle-btn {
+  background: var(--accent-dim); border: 1px solid var(--accent-mid);
   border-radius: 10px; color: var(--accent);
-  font-size: 11px; font-weight: 700; padding: 6px 12px;
-  cursor: pointer; font-family: 'Plus Jakarta Sans', sans-serif; transition: all .12s;
+  font-size: 11px; font-weight: 700; padding: 5px 12px; min-height: 28px;
+  cursor: pointer; font-family: 'Plus Jakarta Sans', sans-serif; transition: all 0.12s;
 }
-.upibtn:active { background: var(--accent); color: #000; transform: scale(.95); }
+.settle-btn:active { transform: scale(0.95); }
 
-/* INSIGHTS */
-.stats-g { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 0 22px; }
-.sc { background: var(--card); border-radius: 18px; padding: 16px; border: 1px solid var(--border); }
-.sc-lbl { font-size: 9px; font-weight: 700; color: var(--text3); letter-spacing: .8px; text-transform: uppercase; margin-bottom: 5px; }
-.sc-v { font-size: 24px; font-weight: 800; color: var(--text); }
-.sc-v.g { color: var(--accent); }
-.sc-v.sm { font-size: 18px; }
-.sc-sub { font-size: 10px; color: var(--text3); margin-top: 3px; }
-.bar-card { margin: 0 22px; background: var(--card); border-radius: 18px; padding: 16px; border: 1px solid var(--border); }
-.br { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
-.br:last-child { margin-bottom: 0; }
-.bl { font-size: 12px; color: var(--text2); width: 70px; flex-shrink: 0; font-weight: 500; }
-.bt { flex: 1; height: 6px; background: var(--card2); border-radius: 3px; overflow: hidden; }
-.bf { height: 100%; border-radius: 3px; }
-.bv { font-size: 11px; font-weight: 700; color: var(--text); min-width: 48px; text-align: right; }
+.cta {
+  width: 100%; background: var(--accent); border: none; border-radius: 16px;
+  height: 52px; font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 15px; font-weight: 800; color: #000;
+  cursor: pointer; box-shadow: 0 6px 24px rgba(0,212,154,0.28);
+  display: flex; align-items: center; justify-content: center;
+  transition: transform 0.12s;
+}
+.cta:active { transform: scale(0.97); }
+.cta-danger { background: var(--danger); color: #fff; box-shadow: 0 6px 24px rgba(255,89,89,0.25); }
 
-/* TOAST */
+.cat-chip {
+  display: flex; flex-direction: column; align-items: center; gap: 5px;
+  padding: 12px 8px 10px; border-radius: 14px;
+  background: var(--card2); border: 1.5px solid var(--border2);
+  cursor: pointer; transition: all 0.12s;
+}
+.cat-chip:active { transform: scale(0.95); }
+.cat-chip.on { background: var(--accent-dim); border-color: var(--accent-mid); }
+.cat-chip .ce { font-size: 22px; line-height: 1; }
+.cat-chip .cn { font-size: 10px; font-weight: 700; color: var(--text2); }
+.cat-chip.on .cn { color: var(--accent); }
+
+.input-field {
+  background: var(--card2); border: 1.5px solid var(--border2); border-radius: 14px;
+  color: var(--text); font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 15px; font-weight: 600; padding: 12px 14px;
+  outline: none; transition: border-color 0.15s; width: 100%;
+}
+.input-field:focus { border-color: var(--accent); }
+
+.pulse-dot {
+  width: 6px; height: 6px; border-radius: 50%; background: var(--accent);
+  animation: blink 2.2s infinite; display: inline-block; vertical-align: middle; margin-left: 5px;
+}
+@keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+.bar-fill {
+  height: 6px; border-radius: 3px; background: var(--accent);
+  transition: width 0.8s cubic-bezier(0.34,1.56,0.64,1);
+}
+
+/* ── Toast ── */
 .toast {
   position: absolute; bottom: 92px; left: 50%;
   transform: translateX(-50%) translateY(10px);
   background: var(--accent); color: #000;
   border-radius: 16px; padding: 12px 22px;
   font-size: 13px; font-weight: 700; white-space: nowrap;
-  opacity: 0; transition: opacity .2s, transform .2s;
+  opacity: 0; transition: opacity 0.2s, transform 0.2s;
   z-index: 200; pointer-events: none;
-  box-shadow: 0 8px 28px rgba(0,212,154,.3);
+  box-shadow: 0 8px 28px rgba(0,212,154,0.3);
 }
 .toast.on { opacity: 1; transform: translateX(-50%) translateY(0); }
 
-/* INFO PANEL */
-.info { flex: 1; max-width: 360px; }
-.info-logo { font-size: 36px; font-weight: 800; color: #F2F2F2; margin-bottom: 6px; }
+/* ── Info panel ── */
+.info-logo { font-size: 32px; font-weight: 800; color: #F2F2F2; margin-bottom: 6px; }
 .info-logo span { color: var(--accent); }
-.info-sub { font-size: 14px; color: #4A4A4A; margin-bottom: 32px; line-height: 1.6; }
-.feats { display: flex; flex-direction: column; gap: 18px; margin-bottom: 32px; }
-.feat { display: flex; gap: 14px; align-items: flex-start; }
-.fi { width: 42px; height: 42px; border-radius: 14px; background: var(--card); border: 1px solid var(--border2); display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
-.ft { font-size: 14px; font-weight: 600; color: #DDD; margin-bottom: 3px; }
-.fd { font-size: 12px; color: #4A4A4A; line-height: 1.45; }
-.tags { display: flex; gap: 8px; flex-wrap: wrap; }
-.tag { background: var(--card); border: 1px solid var(--border2); border-radius: 20px; padding: 6px 14px; font-size: 11px; font-weight: 600; color: #555; }
-.tag.hl { border-color: var(--accent-mid); color: var(--accent); background: var(--accent-dim); }
+.info-sub { font-size: 13px; color: #4A4A4A; margin-bottom: 28px; line-height: 1.6; }
+.feats { display: flex; flex-direction: column; gap: 16px; margin-bottom: 28px; }
+.feat { display: flex; gap: 12px; align-items: flex-start; }
+.fi { width: 38px; height: 38px; border-radius: 12px; background: var(--card); border: 1px solid var(--border2); display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+.ft { font-size: 13px; font-weight: 600; color: #DDD; margin-bottom: 2px; }
+.fd { font-size: 11px; color: #4A4A4A; line-height: 1.4; }
+
+/* Screen nav pills */
+.nav { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 24px; }
+.np {
+  background: var(--card); border: 1px solid var(--border2);
+  border-radius: 20px; padding: 6px 14px;
+  font-size: 11px; font-weight: 600; color: #555;
+  cursor: pointer; transition: all 0.12s;
+}
+.np.active, .np:hover { border-color: var(--accent-mid); color: var(--accent); background: var(--accent-dim); }
+.nav-group { font-size: 10px; font-weight: 700; color: var(--text3); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px; width: 100%; }
 
 @media(max-width:820px){
-  .wrapper { flex-direction: column; align-items: center; padding: 24px; gap: 28px; }
-  .phone { width: 360px; height: 780px; }
+  body { padding: 20px 16px; }
+  .wrapper { flex-direction: column; align-items: center; gap: 28px; }
+  .phone { width: 360px; }
   .info { max-width: 360px; }
 }
 @media(max-width:400px){
-  .phone { width: calc(100vw - 32px); height: 82vh; border-radius: 36px; }
+  .phone { width: calc(100vw - 32px); border-radius: 36px; }
 }
 </style>
 </head>
 <body>
 <div class="wrapper">
 
-  <!-- INFO -->
+  <!-- INFO PANEL -->
   <div class="info">
     <div class="info-logo">Split<span>Now</span></div>
-    <div class="info-sub">Expense splitting for India. No forms. No friction.<br>Log a payment in under 2 seconds.</div>
-    <div class="feats">
-      <div class="feat"><div class="fi">⚡</div><div><div class="ft">Quick Add Strip</div><div class="fd">Pre-filled with your last expense. Tap + and it's done.</div></div></div>
-      <div class="feat"><div class="fi">🧠</div><div><div class="ft">Predictive Defaults</div><div class="fd">Category, people, and amount auto-selected from your patterns.</div></div></div>
-      <div class="feat"><div class="fi">📲</div><div><div class="ft">UPI SMS Auto-Fill</div><div class="fd">Reads your UPI transaction SMS and pre-populates the amount.</div></div></div>
-      <div class="feat"><div class="fi">🤝</div><div><div class="ft">Settle in One Tap</div><div class="fd">Pay directly via UPI or settle all dues at once.</div></div></div>
+    <div class="info-sub">India-first expense splitting. No forms. No friction. Log a shared expense in under 2 seconds.</div>
+
+    <div class="nav" id="screen-nav">
+      <div class="nav-group">Tab screens</div>
+      <div class="np active" onclick="go('home')">🏠 Home</div>
+      <div class="np" onclick="go('add')">➕ Add</div>
+      <div class="np" onclick="go('settle')">💸 Settle</div>
+      <div class="np" onclick="go('insights')">📊 Insights</div>
+      <div class="np" onclick="go('friends')">👥 Friends</div>
+      <div class="nav-group">Stack screens</div>
+      <div class="np" onclick="go('account')">👤 Account</div>
+      <div class="np" onclick="go('profile-edit')">✏️ Profile Edit</div>
+      <div class="np" onclick="go('expense-detail')">🧾 Expense Detail</div>
+      <div class="np" onclick="go('expense-edit')">📝 Expense Edit</div>
+      <div class="nav-group">Modal</div>
+      <div class="np" onclick="go('join')">🔗 Join Group</div>
     </div>
-    <div class="tags">
-      <div class="tag hl">India-First</div>
-      <div class="tag hl">UPI Native</div>
-      <div class="tag">≤ 2 Taps</div>
-      <div class="tag">SMS Aware</div>
-      <div class="tag">Dark Minimal</div>
+
+    <div class="feats">
+      <div class="feat"><div class="fi">⚡</div><div><div class="ft">Quick Add Strip</div><div class="fd">Pre-filled from your last expense. Tap + and it's done.</div></div></div>
+      <div class="feat"><div class="fi">🤝</div><div><div class="ft">Settle with One Tap</div><div class="fd">Record settlements instantly. UPI deeplinks coming soon.</div></div></div>
+      <div class="feat"><div class="fi">👥</div><div><div class="ft">Friends via Invite Code</div><div class="fd">Add friends with an 8-char code. No phone book needed.</div></div></div>
+      <div class="feat"><div class="fi">💬</div><div><div class="ft">Expense Comments</div><div class="fd">Chat on any expense. Threaded, per-expense comments.</div></div></div>
     </div>
   </div>
 
   <!-- PHONE -->
   <div class="phone">
-    <div class="toast" id="toast">✓ Done!</div>
+    <div class="toast" id="toast"></div>
 
-    <!-- HOME -->
+    <!-- ════════════════════════════════════════════
+         HOME
+    ════════════════════════════════════════════ -->
     <div class="screen active" id="s-home">
       <div class="status">
         <div class="s-time">9:41</div>
         <div class="s-icons"><div class="s-dot on"></div><div class="s-dot on"></div><div class="s-dot"></div></div>
       </div>
       <div class="scroll">
-        <div class="home-hdr">
-          <div class="greet">Hey<br><span>Aryan</span> 👋</div>
-          <div class="av-me">A</div>
-        </div>
-        <div class="bal-card">
-          <div class="bc-lbl">Net Balance</div>
-          <div class="bc-amt">₹1,240</div>
-          <div class="bc-sub">You owe across 3 people</div>
-          <div class="bc-pills"><div class="bc-pill">3 pending</div><div class="bc-pill">Apr 2026</div></div>
-        </div>
-        <div class="qa">
-          <div class="qa-top">
-            <div class="qa-badge"><div class="qa-dot"></div>Quick Add</div>
-            <div class="qa-hint">Last: 🍛 Food</div>
+        <div style="padding:20px 22px 0;">
+
+          <!-- Header -->
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
+            <div>
+              <div style="font-size:12px;color:var(--text2);margin-bottom:3px;">Hey Aryan 👋</div>
+              <div style="font-size:22px;font-weight:800;color:var(--text);">May 2026</div>
+            </div>
+            <div class="avatar av-g" style="width:42px;height:42px;font-size:14px;cursor:pointer;" onclick="go('account')">AR</div>
           </div>
-          <div class="qa-row">
-            <input class="qa-input" id="qa-in" type="number" value="540" inputmode="numeric">
-            <div class="qa-chip" id="qa-cat" onclick="cycleCat(this)">🍛 Food</div>
-            <button class="qa-btn" onclick="quickAdd()">+</button>
+
+          <!-- Net Balance -->
+          <div class="card" style="margin-bottom:16px;background:var(--danger-dim);border-color:var(--danger-border);">
+            <div class="lbl" style="margin-bottom:6px;color:rgba(255,89,89,0.55);">NET BALANCE</div>
+            <div style="font-size:42px;font-weight:800;letter-spacing:-2px;color:var(--danger);margin-bottom:4px;">−₹1,240</div>
+            <div style="font-size:12px;color:var(--text2);">to 2 people</div>
           </div>
-          <div class="qa-ppl">
-            <div class="qa-pc on" onclick="this.classList.toggle('on')">Raj</div>
-            <div class="qa-pc on" onclick="this.classList.toggle('on')">Priya</div>
-            <div class="qa-pc" onclick="this.classList.toggle('on')">Arjun</div>
+
+          <!-- Balances -->
+          <div style="margin-bottom:16px;">
+            <div class="lbl">BALANCES</div>
+            <div class="card card-flush">
+              <div class="row">
+                <div class="avatar av-b">RJ</div>
+                <div style="flex:1;"><div class="row-name">Raj</div><div class="row-sub">You owe</div></div>
+                <div style="font-size:15px;font-weight:800;color:var(--danger);margin-right:8px;">−₹640</div>
+                <button class="settle-btn" onclick="toast('Marked as paid to Raj ✓')">Settle</button>
+              </div>
+              <div class="divider"></div>
+              <div class="row">
+                <div class="avatar av-p">PR</div>
+                <div style="flex:1;"><div class="row-name">Priya</div><div class="row-sub">Owes you</div></div>
+                <div style="font-size:15px;font-weight:800;color:var(--accent);margin-right:8px;">+₹300</div>
+                <div style="width:55px;"></div>
+              </div>
+              <div class="divider"></div>
+              <div class="row">
+                <div class="avatar av-o">AJ</div>
+                <div style="flex:1;"><div class="row-name">Arjun</div><div class="row-sub">You owe</div></div>
+                <div style="font-size:15px;font-weight:800;color:var(--danger);margin-right:8px;">−₹900</div>
+                <button class="settle-btn" onclick="toast('Marked as paid to Arjun ✓')">Settle</button>
+              </div>
+            </div>
           </div>
-        </div>
-        <div class="sh">Balances <a>See all</a></div>
-        <div class="list">
-          <div class="row"><div class="av ag">R</div><div class="row-name">Raj</div><div class="r-amt owe">−₹640</div><button class="pbtn" onclick="t2('Opening GPay for Raj…')">Pay UPI</button></div>
-          <div class="row"><div class="av ab">P</div><div class="row-name">Priya</div><div class="r-amt owed">+₹300</div></div>
-          <div class="row"><div class="av ap">A</div><div class="row-name">Arjun</div><div class="r-amt owe">−₹900</div><button class="pbtn" onclick="t2('Opening GPay for Arjun…')">Pay UPI</button></div>
-        </div>
-        <div class="sh">Recent Activity</div>
-        <div class="list" style="margin-bottom:22px;">
-          <div class="row"><div class="act-ico">🛒</div><div class="act-inf"><div class="act-t">Groceries</div><div class="act-m">Yesterday · Raj, Priya</div></div><div class="act-a aneg">−₹420</div></div>
-          <div class="row"><div class="act-ico">🍕</div><div class="act-inf"><div class="act-t">Dinner — Barbeque Nation</div><div class="act-m">Monday · All</div></div><div class="act-a aneg">−₹680</div></div>
-          <div class="row"><div class="act-ico">⚡</div><div class="act-inf"><div class="act-t">Electricity Bill</div><div class="act-m">Apr 18 · Arjun paid you</div></div><div class="act-a apos">+₹300</div></div>
+
+          <!-- Recent Activity -->
+          <div style="margin-bottom:22px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+              <div class="lbl" style="margin-bottom:0;">RECENT ACTIVITY</div>
+              <div style="font-size:11px;font-weight:600;color:var(--accent);cursor:pointer;">See all (12) →</div>
+            </div>
+            <div class="card card-flush">
+              <div class="row" style="cursor:pointer;" onclick="go('expense-detail')">
+                <div style="width:36px;height:36px;border-radius:12px;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:16px;">🛒</div>
+                <div style="flex:1;"><div class="row-name">Groceries</div><div class="row-sub">Raj, Priya · Yesterday</div></div>
+                <div style="font-size:14px;font-weight:800;color:var(--danger);">−₹140</div>
+              </div>
+              <div class="divider"></div>
+              <div class="row" style="cursor:pointer;" onclick="go('expense-detail')">
+                <div style="width:36px;height:36px;border-radius:12px;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:16px;">🍛</div>
+                <div style="flex:1;"><div class="row-name">Dinner · BBQ Nation</div><div class="row-sub">All · Monday</div></div>
+                <div style="font-size:14px;font-weight:800;color:var(--danger);">−₹170</div>
+              </div>
+              <div class="divider"></div>
+              <div class="row" style="cursor:pointer;" onclick="go('expense-detail')">
+                <div style="width:36px;height:36px;border-radius:12px;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:16px;">⚡</div>
+                <div style="flex:1;"><div class="row-name">Electricity Bill</div><div class="row-sub" style="color:var(--accent);">Arjun paid you · Apr 18</div></div>
+                <div style="font-size:14px;font-weight:800;color:var(--accent);">+₹300</div>
+              </div>
+              <div class="divider"></div>
+              <div class="row" style="cursor:pointer;" onclick="go('expense-detail')">
+                <div style="width:36px;height:36px;border-radius:12px;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:16px;">☕</div>
+                <div style="flex:1;"><div class="row-name">Chai — CCD</div><div class="row-sub">Today · Personal</div></div>
+                <div style="font-size:14px;font-weight:800;color:var(--text);">₹80</div>
+              </div>
+            </div>
+          </div>
+
         </div>
       </div>
-      <div class="tabs">
-        <div class="tab active" onclick="go('home')"><div class="tab-i">🏠</div><div class="tab-l">Home</div><div class="t-pip"></div></div>
-        <div class="tab" onclick="go('add')"><div class="tab-i">➕</div><div class="tab-l">Add</div><div class="t-pip"></div></div>
-        <div class="tab" onclick="go('settle')"><div class="tab-i">🤝</div><div class="tab-l">Settle</div><div class="t-pip"></div></div>
-        <div class="tab" onclick="go('insights')"><div class="tab-i">📊</div><div class="tab-l">Insights</div><div class="t-pip"></div></div>
-      </div>
+      <div class="tabs" id="tabs-home"></div>
     </div>
 
-    <!-- ADD -->
+    <!-- ════════════════════════════════════════════
+         ADD
+    ════════════════════════════════════════════ -->
     <div class="screen" id="s-add">
       <div class="status"><div class="s-time">9:41</div><div class="s-icons"><div class="s-dot on"></div><div class="s-dot on"></div><div class="s-dot"></div></div></div>
-      <div class="add-hdr">
-        <div class="add-ttl">Add Expense</div>
-        <button class="cxbtn" onclick="go('home')">Cancel</button>
-      </div>
       <div class="scroll">
-        <div class="big-wrap">
-          <span class="rupee">₹</span>
-          <input class="big-in" id="big-in" type="number" placeholder="0" inputmode="numeric" value="540" oninput="updateSplit()">
-        </div>
-        <div class="divl"></div>
-        <div class="add-sec">
-          <div class="add-lbl">Category</div>
-          <div class="cat-grid">
-            <div class="cat-it on" onclick="selCat(this)"><div class="ce">🍛</div><div class="cn">Food</div></div>
-            <div class="cat-it" onclick="selCat(this)"><div class="ce">🛒</div><div class="cn">Groceries</div></div>
-            <div class="cat-it" onclick="selCat(this)"><div class="ce">🚗</div><div class="cn">Travel</div></div>
-            <div class="cat-it" onclick="selCat(this)"><div class="ce">⚡</div><div class="cn">Bills</div></div>
-            <div class="cat-it" onclick="selCat(this)"><div class="ce">☕</div><div class="cn">Chai</div></div>
-            <div class="cat-it" onclick="selCat(this)"><div class="ce">📱</div><div class="cn">Recharge</div></div>
+        <div style="padding:20px 22px 0;">
+
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;">
+            <div style="font-size:22px;font-weight:800;color:var(--text);">Add Expense</div>
+            <button onclick="go('home')" style="background:var(--card2);border:1px solid var(--border2);border-radius:10px;color:var(--text2);font-size:12px;font-weight:600;padding:6px 14px;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;">Cancel</button>
           </div>
-        </div>
-        <div class="add-sec">
-          <div class="add-lbl">Split With</div>
-          <div class="ppl-chips" id="add-pp">
-            <div class="pch on" onclick="toggleP(this)"><div class="pdot" style="background:var(--accent)"></div><div class="pn">Raj</div></div>
-            <div class="pch on" onclick="toggleP(this)"><div class="pdot" style="background:var(--blue)"></div><div class="pn">Priya</div></div>
-            <div class="pch" onclick="toggleP(this)"><div class="pdot" style="background:var(--purple)"></div><div class="pn">Arjun</div></div>
-            <div class="pch" onclick="toggleP(this)"><div class="pdot" style="background:var(--orange)"></div><div class="pn">Deepak</div></div>
+
+          <div style="text-align:center;margin-bottom:28px;">
+            <div style="display:inline-flex;align-items:center;gap:4px;background:var(--card2);border:1.5px solid var(--border2);border-radius:20px;padding:14px 24px;">
+              <span style="font-size:36px;font-weight:800;color:var(--text2);">₹</span>
+              <input id="add-amt" type="number" value="540" style="font-family:'Plus Jakarta Sans',sans-serif;font-size:52px;font-weight:800;color:var(--text);background:transparent;border:none;outline:none;width:140px;text-align:center;" oninput="updateSplit()">
+            </div>
           </div>
+
+          <div style="margin-bottom:22px;">
+            <div class="lbl">CATEGORY</div>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;" id="cat-grid">
+              <div class="cat-chip on" onclick="selCat(this)"><div class="ce">🍛</div><div class="cn">Food</div></div>
+              <div class="cat-chip" onclick="selCat(this)"><div class="ce">🛒</div><div class="cn">Groceries</div></div>
+              <div class="cat-chip" onclick="selCat(this)"><div class="ce">🚗</div><div class="cn">Travel</div></div>
+              <div class="cat-chip" onclick="selCat(this)"><div class="ce">⚡</div><div class="cn">Bills</div></div>
+              <div class="cat-chip" onclick="selCat(this)"><div class="ce">☕</div><div class="cn">Chai/Coffee</div></div>
+              <div class="cat-chip" onclick="selCat(this)"><div class="ce">📱</div><div class="cn">Recharge</div></div>
+            </div>
+          </div>
+
+          <div style="margin-bottom:22px;">
+            <div class="lbl">SPLIT WITH</div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;" id="ppl-chips">
+              <div class="chip on" onclick="toggleChip(this)">Raj</div>
+              <div class="chip on" onclick="toggleChip(this)">Priya</div>
+              <div class="chip" onclick="toggleChip(this)">Arjun</div>
+              <div class="chip" onclick="toggleChip(this)">Deepak</div>
+            </div>
+            <div style="margin-top:10px;font-size:12px;color:var(--text2);font-weight:500;" id="split-calc">Each pays ₹180 (3 people)</div>
+          </div>
+
+          <button class="cta" onclick="addExp()">Add Expense →</button>
         </div>
-        <div class="split-row" id="split-row">
-          Each pays <div class="split-pill" id="split-pill">₹180</div>&nbsp;(3 people)
-        </div>
-        <button class="add-cta" onclick="addExpense()">Add Expense →</button>
-        <div style="height:18px"></div>
       </div>
-      <div class="tabs">
-        <div class="tab" onclick="go('home')"><div class="tab-i">🏠</div><div class="tab-l">Home</div><div class="t-pip"></div></div>
-        <div class="tab active" onclick="go('add')"><div class="tab-i">➕</div><div class="tab-l">Add</div><div class="t-pip"></div></div>
-        <div class="tab" onclick="go('settle')"><div class="tab-i">🤝</div><div class="tab-l">Settle</div><div class="t-pip"></div></div>
-        <div class="tab" onclick="go('insights')"><div class="tab-i">📊</div><div class="tab-l">Insights</div><div class="t-pip"></div></div>
-      </div>
+      <div class="tabs" id="tabs-add"></div>
     </div>
 
-    <!-- SETTLE -->
+    <!-- ════════════════════════════════════════════
+         SETTLE
+    ════════════════════════════════════════════ -->
     <div class="screen" id="s-settle">
       <div class="status"><div class="s-time">9:41</div><div class="s-icons"><div class="s-dot on"></div><div class="s-dot on"></div><div class="s-dot"></div></div></div>
       <div class="scroll">
-        <div style="padding:14px 22px 0;font-size:26px;font-weight:800;color:var(--text)">Settle Up</div>
-        <div class="stle-hero">
-          <div class="sh-lbl">Total You Owe</div>
-          <div class="sh-amt">₹1,540</div>
-          <div class="sh-sub">to 2 people · Apr 2026</div>
-          <button class="stle-all" onclick="t2('Opening UPI for all settlements…')">⚡ Settle All · Pay ₹1,540</button>
-        </div>
-        <div class="sh">Suggested</div>
-        <div class="list">
-          <div class="sug-row">
-            <div class="av ag" style="width:32px;height:32px;font-size:11px">You</div>
-            <div class="sarw">→</div>
-            <div class="av ag" style="width:32px;height:32px;font-size:11px">R</div>
-            <div class="sug-n">Raj</div>
-            <div class="sug-a">₹640</div>
-            <button class="upibtn" onclick="t2('Opening GPay for Raj…')">UPI →</button>
+        <div style="padding:20px 22px 0;">
+
+          <div style="font-size:22px;font-weight:800;color:var(--text);margin-bottom:20px;">Settle Up</div>
+
+          <div class="card" style="margin-bottom:16px;background:var(--danger-dim);border-color:var(--danger-border);text-align:center;padding:24px 18px;">
+            <div class="lbl" style="margin-bottom:8px;color:rgba(255,89,89,0.55);">TOTAL YOU OWE</div>
+            <div style="font-size:48px;font-weight:800;letter-spacing:-2px;color:var(--danger);margin-bottom:6px;">₹1,540</div>
+            <div style="font-size:12px;color:var(--text2);">to 2 people · May 2026</div>
           </div>
-          <div class="sug-row">
-            <div class="av ap" style="width:32px;height:32px;font-size:11px">You</div>
-            <div class="sarw">→</div>
-            <div class="av ap" style="width:32px;height:32px;font-size:11px">A</div>
-            <div class="sug-n">Arjun</div>
-            <div class="sug-a">₹900</div>
-            <button class="upibtn" onclick="t2('Opening GPay for Arjun…')">UPI →</button>
+
+          <button class="cta cta-danger" style="margin-bottom:20px;" onclick="toast('All settlements recorded ✓')">⚡ Settle All · ₹1,540</button>
+
+          <div style="margin-bottom:16px;">
+            <div class="lbl">SUGGESTED</div>
+            <div class="card card-flush">
+              <div class="row" style="padding:14px 16px;">
+                <div class="avatar av-b">RJ</div>
+                <div style="flex:1;"><div class="row-name">You → Raj</div></div>
+                <div style="font-size:15px;font-weight:800;color:var(--danger);margin-right:10px;">₹640</div>
+                <button class="settle-btn" onclick="toast('Settled with Raj ✓')">Settle</button>
+              </div>
+              <div class="divider"></div>
+              <div class="row" style="padding:14px 16px;">
+                <div class="avatar av-o">AJ</div>
+                <div style="flex:1;"><div class="row-name">You → Arjun</div></div>
+                <div style="font-size:15px;font-weight:800;color:var(--danger);margin-right:10px;">₹900</div>
+                <button class="settle-btn" onclick="toast('Settled with Arjun ✓')">Settle</button>
+              </div>
+            </div>
           </div>
-        </div>
-        <div class="sh">All Balances</div>
-        <div class="list" style="margin-bottom:22px;">
-          <div class="row"><div class="av ag">R</div><div class="row-name">Raj</div><div class="r-amt owe" style="margin-right:8px">−₹640</div><button class="pbtn" onclick="t2('Opening GPay…')">Pay</button></div>
-          <div class="row"><div class="av ab">P</div><div class="row-name">Priya</div><div class="r-amt owed">+₹300</div></div>
-          <div class="row"><div class="av ap">A</div><div class="row-name">Arjun</div><div class="r-amt owe" style="margin-right:8px">−₹900</div><button class="pbtn" onclick="t2('Opening GPay…')">Pay</button></div>
+
+          <div style="margin-bottom:22px;">
+            <div class="lbl">ALL BALANCES</div>
+            <div class="card card-flush">
+              <div class="row"><div class="avatar av-b">RJ</div><div style="flex:1;"><div class="row-name">Raj</div></div><div style="font-size:14px;font-weight:800;color:var(--danger);">−₹640</div></div>
+              <div class="divider"></div>
+              <div class="row"><div class="avatar av-p">PR</div><div style="flex:1;"><div class="row-name">Priya</div></div><div style="font-size:14px;font-weight:800;color:var(--accent);">+₹300</div></div>
+              <div class="divider"></div>
+              <div class="row"><div class="avatar av-o">AJ</div><div style="flex:1;"><div class="row-name">Arjun</div></div><div style="font-size:14px;font-weight:800;color:var(--danger);">−₹900</div></div>
+            </div>
+          </div>
+
         </div>
       </div>
-      <div class="tabs">
-        <div class="tab" onclick="go('home')"><div class="tab-i">🏠</div><div class="tab-l">Home</div><div class="t-pip"></div></div>
-        <div class="tab" onclick="go('add')"><div class="tab-i">➕</div><div class="tab-l">Add</div><div class="t-pip"></div></div>
-        <div class="tab active" onclick="go('settle')"><div class="tab-i">🤝</div><div class="tab-l">Settle</div><div class="t-pip"></div></div>
-        <div class="tab" onclick="go('insights')"><div class="tab-i">📊</div><div class="tab-l">Insights</div><div class="t-pip"></div></div>
-      </div>
+      <div class="tabs" id="tabs-settle"></div>
     </div>
 
-    <!-- INSIGHTS -->
+    <!-- ════════════════════════════════════════════
+         INSIGHTS
+    ════════════════════════════════════════════ -->
     <div class="screen" id="s-insights">
       <div class="status"><div class="s-time">9:41</div><div class="s-icons"><div class="s-dot on"></div><div class="s-dot on"></div><div class="s-dot"></div></div></div>
       <div class="scroll">
-        <div style="padding:14px 22px 12px;font-size:26px;font-weight:800;color:var(--text)">Insights</div>
-        <div class="stats-g">
-          <div class="sc"><div class="sc-lbl">This Month</div><div class="sc-v g">₹4,280</div><div class="sc-sub">Apr 2026</div></div>
-          <div class="sc"><div class="sc-lbl">Expenses</div><div class="sc-v">14</div><div class="sc-sub">transactions</div></div>
-        </div>
-        <div class="stats-g" style="margin-top:10px">
-          <div class="sc"><div class="sc-lbl">Most With</div><div class="sc-v sm">Raj 🏆</div><div class="sc-sub">6 shared</div></div>
-          <div class="sc"><div class="sc-lbl">Avg / Day</div><div class="sc-v sm">₹214</div><div class="sc-sub">this month</div></div>
-        </div>
-        <div class="sh">By Category</div>
-        <div class="bar-card">
-          <div class="br"><div class="bl">🍛 Food</div><div class="bt"><div class="bf" style="width:78%;background:var(--accent)"></div></div><div class="bv">₹1,840</div></div>
-          <div class="br"><div class="bl">🛒 Grocery</div><div class="bt"><div class="bf" style="width:50%;background:var(--blue)"></div></div><div class="bv">₹1,120</div></div>
-          <div class="br"><div class="bl">⚡ Bills</div><div class="bt"><div class="bf" style="width:33%;background:var(--orange)"></div></div><div class="bv">₹780</div></div>
-          <div class="br"><div class="bl">🚗 Travel</div><div class="bt"><div class="bf" style="width:22%;background:var(--purple)"></div></div><div class="bv">₹540</div></div>
-        </div>
-        <div class="sh">Personal</div>
-        <div class="list" style="margin-bottom:22px;">
-          <div class="row"><div class="act-ico">☕</div><div class="act-inf"><div class="act-t">Chai — CCD</div><div class="act-m">Today</div></div><div class="act-a aneg">−₹80</div></div>
-          <div class="row"><div class="act-ico">📱</div><div class="act-inf"><div class="act-t">Jio Recharge</div><div class="act-m">Apr 22</div></div><div class="act-a aneg">−₹299</div></div>
-          <div class="row"><div class="act-ico">🚗</div><div class="act-inf"><div class="act-t">Ola — Office</div><div class="act-m">Apr 21</div></div><div class="act-a aneg">−₹161</div></div>
+        <div style="padding:20px 22px 0;">
+
+          <div style="font-size:22px;font-weight:800;color:var(--text);margin-bottom:20px;">Insights</div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">
+            <div class="card" style="padding:14px;"><div class="lbl" style="margin-bottom:6px;">THIS MONTH</div><div style="font-size:22px;font-weight:800;color:var(--accent);">₹4,280</div><div style="font-size:10px;color:var(--text2);margin-top:3px;">May 2026</div></div>
+            <div class="card" style="padding:14px;"><div class="lbl" style="margin-bottom:6px;">EXPENSES</div><div style="font-size:22px;font-weight:800;color:var(--text);">14</div><div style="font-size:10px;color:var(--text2);margin-top:3px;">transactions</div></div>
+            <div class="card" style="padding:14px;"><div class="lbl" style="margin-bottom:6px;">MOST WITH</div><div style="font-size:18px;font-weight:800;color:var(--text);">Raj 🏆</div><div style="font-size:10px;color:var(--text2);margin-top:3px;">6 shared</div></div>
+            <div class="card" style="padding:14px;"><div class="lbl" style="margin-bottom:6px;">AVG / DAY</div><div style="font-size:18px;font-weight:800;color:var(--text);">₹214</div><div style="font-size:10px;color:var(--text2);margin-top:3px;">this month</div></div>
+          </div>
+
+          <div style="margin-bottom:16px;">
+            <div class="lbl">BY CATEGORY</div>
+            <div class="card" style="display:flex;flex-direction:column;gap:14px;">
+              <div><div style="display:flex;justify-content:space-between;margin-bottom:6px;"><div style="font-size:12px;font-weight:600;color:var(--text);">🍛 Food</div><div style="font-size:12px;font-weight:800;color:var(--text);">₹1,840</div></div><div style="background:var(--card2);border-radius:3px;height:6px;"><div class="bar-fill" style="width:0" data-w="100%"></div></div></div>
+              <div><div style="display:flex;justify-content:space-between;margin-bottom:6px;"><div style="font-size:12px;font-weight:600;color:var(--text);">🛒 Groceries</div><div style="font-size:12px;font-weight:800;color:var(--text);">₹1,120</div></div><div style="background:var(--card2);border-radius:3px;height:6px;"><div class="bar-fill" style="width:0;background:var(--blue)" data-w="61%"></div></div></div>
+              <div><div style="display:flex;justify-content:space-between;margin-bottom:6px;"><div style="font-size:12px;font-weight:600;color:var(--text);">⚡ Bills</div><div style="font-size:12px;font-weight:800;color:var(--text);">₹780</div></div><div style="background:var(--card2);border-radius:3px;height:6px;"><div class="bar-fill" style="width:0;background:var(--orange)" data-w="42%"></div></div></div>
+              <div><div style="display:flex;justify-content:space-between;margin-bottom:6px;"><div style="font-size:12px;font-weight:600;color:var(--text);">🚗 Travel</div><div style="font-size:12px;font-weight:800;color:var(--text);">₹540</div></div><div style="background:var(--card2);border-radius:3px;height:6px;"><div class="bar-fill" style="width:0;background:var(--purple)" data-w="29%"></div></div></div>
+            </div>
+          </div>
+
+          <div style="margin-bottom:22px;">
+            <div class="lbl">PERSONAL</div>
+            <div class="card card-flush">
+              <div class="row"><div style="width:36px;height:36px;border-radius:12px;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:16px;">☕</div><div style="flex:1;"><div class="row-name">Chai — CCD</div><div class="row-sub">Today</div></div><div style="font-size:14px;font-weight:800;color:var(--text);">₹80</div></div>
+              <div class="divider"></div>
+              <div class="row"><div style="width:36px;height:36px;border-radius:12px;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:16px;">📱</div><div style="flex:1;"><div class="row-name">Jio Recharge</div><div class="row-sub">Apr 22</div></div><div style="font-size:14px;font-weight:800;color:var(--text);">₹299</div></div>
+              <div class="divider"></div>
+              <div class="row"><div style="width:36px;height:36px;border-radius:12px;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:16px;">🚗</div><div style="flex:1;"><div class="row-name">Ola cab</div><div class="row-sub">Apr 21</div></div><div style="font-size:14px;font-weight:800;color:var(--text);">₹161</div></div>
+            </div>
+          </div>
+
         </div>
       </div>
-      <div class="tabs">
-        <div class="tab" onclick="go('home')"><div class="tab-i">🏠</div><div class="tab-l">Home</div><div class="t-pip"></div></div>
-        <div class="tab" onclick="go('add')"><div class="tab-i">➕</div><div class="tab-l">Add</div><div class="t-pip"></div></div>
-        <div class="tab" onclick="go('settle')"><div class="tab-i">🤝</div><div class="tab-l">Settle</div><div class="t-pip"></div></div>
-        <div class="tab active" onclick="go('insights')"><div class="tab-i">📊</div><div class="tab-l">Insights</div><div class="t-pip"></div></div>
+      <div class="tabs" id="tabs-insights"></div>
+    </div>
+
+    <!-- ════════════════════════════════════════════
+         FRIENDS
+    ════════════════════════════════════════════ -->
+    <div class="screen" id="s-friends">
+      <div class="status"><div class="s-time">9:41</div><div class="s-icons"><div class="s-dot on"></div><div class="s-dot on"></div><div class="s-dot"></div></div></div>
+      <div class="scroll">
+        <div style="padding:20px 22px 0;">
+
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+            <div style="font-size:22px;font-weight:800;color:var(--text);">Friends</div>
+            <button onclick="go('join')" style="background:var(--accent-dim);border:1px solid var(--accent-mid);border-radius:12px;color:var(--accent);font-size:12px;font-weight:700;padding:8px 14px;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;">+ Add friend</button>
+          </div>
+
+          <div class="card" style="margin-bottom:16px;background:var(--accent-dim);border-color:var(--accent-mid);">
+            <div class="lbl" style="margin-bottom:6px;color:rgba(0,212,154,0.55);">YOUR INVITE CODE</div>
+            <div style="font-size:26px;font-weight:800;letter-spacing:4px;color:var(--accent);margin-bottom:4px;">ARYN K3M9</div>
+            <div style="font-size:11px;color:var(--text2);">Share this code so friends can add you</div>
+          </div>
+
+          <div style="margin-bottom:22px;">
+            <div class="lbl">YOUR FRIENDS</div>
+            <div class="card card-flush">
+              <div class="row"><div class="avatar av-b">RJ</div><div style="flex:1;"><div class="row-name">Raj</div><div class="row-sub">3 shared groups</div></div><div style="font-size:14px;font-weight:800;color:var(--danger);">−₹640</div></div>
+              <div class="divider"></div>
+              <div class="row"><div class="avatar av-p">PR</div><div style="flex:1;"><div class="row-name">Priya</div><div class="row-sub">2 shared groups</div></div><div style="font-size:14px;font-weight:800;color:var(--accent);">+₹300</div></div>
+              <div class="divider"></div>
+              <div class="row"><div class="avatar av-o">AJ</div><div style="flex:1;"><div class="row-name">Arjun</div><div class="row-sub">1 shared group</div></div><div style="font-size:14px;font-weight:800;color:var(--danger);">−₹900</div></div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+      <div class="tabs" id="tabs-friends"></div>
+    </div>
+
+    <!-- ════════════════════════════════════════════
+         ACCOUNT (stack)
+    ════════════════════════════════════════════ -->
+    <div class="screen" id="s-account">
+      <div class="status"><div class="s-time">9:41</div><div class="s-icons"><div class="s-dot on"></div><div class="s-dot on"></div><div class="s-dot"></div></div></div>
+      <div class="stack-hdr">
+        <button class="back-btn" onclick="go('home')">‹</button>
+        <div class="stack-title">Profile</div>
+        <div class="stack-spacer"></div>
+      </div>
+      <div class="scroll">
+        <div style="padding:24px 22px 0;">
+
+          <div class="card" style="display:flex;align-items:center;gap:14px;margin-bottom:28px;">
+            <div class="avatar av-g" style="width:58px;height:58px;font-size:20px;">AR</div>
+            <div>
+              <div style="font-size:18px;font-weight:800;color:var(--text);margin-bottom:3px;">Aryan</div>
+              <div style="font-size:13px;color:var(--text2);">+91 98765 43210</div>
+              <div style="font-size:12px;color:var(--text3);margin-top:2px;">aryan@okaxis</div>
+            </div>
+          </div>
+
+          <div class="lbl">ACCOUNT</div>
+          <div class="card" style="padding:0;overflow:hidden;margin-bottom:16px;">
+            <div class="row" style="cursor:pointer;" onclick="go('profile-edit')">
+              <div style="width:36px;height:36px;border-radius:11px;background:var(--card2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;">👤</div>
+              <div style="flex:1;"><div class="row-name">Edit Profile</div><div class="row-sub">Name, avatar colour &amp; UPI ID</div></div>
+              <div style="font-size:15px;color:var(--text3);">›</div>
+            </div>
+            <div class="divider"></div>
+            <div class="row" style="cursor:pointer;">
+              <div style="width:36px;height:36px;border-radius:11px;background:var(--card2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;">👥</div>
+              <div style="flex:1;"><div class="row-name">Manage Groups</div><div class="row-sub">Members &amp; balances</div></div>
+              <div style="font-size:15px;color:var(--text3);">›</div>
+            </div>
+            <div class="divider"></div>
+            <div class="row" style="opacity:0.45;">
+              <div style="width:36px;height:36px;border-radius:11px;background:var(--card2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;">⚙️</div>
+              <div style="flex:1;"><div class="row-name">Settings</div><div class="row-sub">Coming soon</div></div>
+            </div>
+          </div>
+
+          <div class="lbl">GENERAL</div>
+          <div class="card" style="padding:0;overflow:hidden;margin-bottom:16px;">
+            <div class="row" style="cursor:pointer;" onclick="toast('Share sheet opened')">
+              <div style="width:36px;height:36px;border-radius:11px;background:var(--card2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;">🔗</div>
+              <div style="flex:1;"><div class="row-name">Invite a Friend</div><div class="row-sub">Share your invite code</div></div>
+              <div style="font-size:15px;color:var(--text3);">›</div>
+            </div>
+          </div>
+
+          <div class="card" style="padding:0;overflow:hidden;margin-bottom:24px;">
+            <div class="row" style="cursor:pointer;">
+              <div style="width:36px;height:36px;border-radius:11px;background:var(--danger-dim);border:1px solid rgba(255,89,89,0.2);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;">🚪</div>
+              <div style="flex:1;"><div class="row-name" style="color:var(--danger);">Sign out</div></div>
+            </div>
+          </div>
+
+        </div>
       </div>
     </div>
-  </div>
-</div>
+
+    <!-- ════════════════════════════════════════════
+         PROFILE EDIT (stack)
+    ════════════════════════════════════════════ -->
+    <div class="screen" id="s-profile-edit">
+      <div class="status"><div class="s-time">9:41</div><div class="s-icons"><div class="s-dot on"></div><div class="s-dot on"></div><div class="s-dot"></div></div></div>
+      <div class="stack-hdr">
+        <button class="back-btn" onclick="go('account')">✕</button>
+        <div class="stack-title">Edit Profile</div>
+        <div class="stack-spacer"></div>
+      </div>
+      <div class="scroll">
+        <div style="padding:24px 22px 0;">
+
+          <!-- Avatar picker -->
+          <div style="align-items:center;display:flex;flex-direction:column;margin-bottom:28px;">
+            <div class="avatar av-g" style="width:72px;height:72px;font-size:24px;margin-bottom:14px;">AR</div>
+            <div class="lbl" style="margin-bottom:10px;text-align:center;">AVATAR COLOUR</div>
+            <div style="display:flex;gap:10px;">
+              <div class="avatar av-g" style="width:34px;height:34px;font-size:12px;cursor:pointer;outline:2px solid var(--accent);outline-offset:2px;">G</div>
+              <div class="avatar av-b" style="width:34px;height:34px;font-size:12px;cursor:pointer;">B</div>
+              <div class="avatar av-p" style="width:34px;height:34px;font-size:12px;cursor:pointer;">P</div>
+              <div class="avatar av-o" style="width:34px;height:34px;font-size:12px;cursor:pointer;">O</div>
+              <div style="width:34px;height:34px;border-radius:50%;background:rgba(255,89,89,0.1);color:#FF5959;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;cursor:pointer;">R</div>
+            </div>
+          </div>
+
+          <div style="margin-bottom:16px;">
+            <div class="lbl">NAME</div>
+            <input class="input-field" type="text" value="Aryan" placeholder="Your name">
+          </div>
+
+          <div style="margin-bottom:16px;">
+            <div class="lbl">UPI ID</div>
+            <input class="input-field" type="text" value="aryan@okaxis" placeholder="yourname@bank">
+          </div>
+
+          <div style="margin-bottom:8px;">
+            <div class="lbl">PHONE</div>
+            <div style="background:var(--card2);border:1.5px solid var(--border);border-radius:14px;padding:12px 14px;font-size:15px;font-weight:600;color:var(--text3);">+91 98765 43210</div>
+            <div style="font-size:11px;color:var(--text3);margin-top:6px;padding-left:2px;">Phone number cannot be changed</div>
+          </div>
+
+          <div style="height:20px;"></div>
+          <button class="cta" onclick="toast('Profile saved ✓');go('account');">Save Changes</button>
+          <div style="height:24px;"></div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════════════════
+         EXPENSE DETAIL (stack)
+    ════════════════════════════════════════════ -->
+    <div class="screen" id="s-expense-detail">
+      <div class="status"><div class="s-time">9:41</div><div class="s-icons"><div class="s-dot on"></div><div class="s-dot on"></div><div class="s-dot"></div></div></div>
+      <div class="stack-hdr">
+        <button class="back-btn" onclick="go('home')">‹</button>
+        <div class="stack-spacer"></div>
+        <div style="display:flex;gap:8px;">
+          <button onclick="go('expense-edit')" style="display:flex;align-items:center;gap:5px;background:var(--card2);border:1px solid var(--border2);border-radius:10px;padding:7px 12px;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;font-size:12px;font-weight:600;color:var(--text2);">✏️ Edit</button>
+          <button style="display:flex;align-items:center;gap:5px;background:rgba(255,89,89,0.08);border:1px solid rgba(255,89,89,0.25);border-radius:10px;padding:7px 12px;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;font-size:12px;font-weight:600;color:var(--danger);">🗑 Delete</button>
+        </div>
+      </div>
+      <div class="scroll">
+        <div style="padding:16px 22px 0;">
+
+          <!-- Hero -->
+          <div style="align-items:center;display:flex;flex-direction:column;margin-bottom:20px;">
+            <div style="width:76px;height:76px;border-radius:24px;background:var(--card2);border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:38px;margin-bottom:14px;">🛒</div>
+            <div style="font-size:22px;font-weight:800;color:var(--text);text-align:center;margin-bottom:8px;">Groceries</div>
+            <div style="display:flex;align-items:center;gap:6px;">
+              <div style="font-size:12px;color:var(--text2);">Yesterday</div>
+              <div style="font-size:12px;color:var(--text3);">·</div>
+              <div style="background:var(--card2);border:1px solid var(--border2);border-radius:20px;padding:4px 10px;font-size:11px;font-weight:600;color:var(--text2);">🛒 Groceries</div>
+            </div>
+          </div>
+
+          <!-- Added by -->
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;padding:0 2px;">
+            <div class="avatar av-g" style="width:24px;height:24px;font-size:8px;">AR</div>
+            <div>
+              <div style="font-size:11px;font-weight:600;color:var(--text2);">Added by you</div>
+              <div style="font-size:10px;color:var(--text3);margin-top:1px;">2 May 2026 · 02:14 PM</div>
+            </div>
+          </div>
+
+          <!-- Amount card -->
+          <div class="card" style="padding:0;overflow:hidden;margin-bottom:14px;">
+            <div style="display:flex;padding:20px 20px 16px;">
+              <div style="flex:1;align-items:center;display:flex;flex-direction:column;">
+                <div style="font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text3);margin-bottom:4px;">TOTAL</div>
+                <div style="font-size:28px;font-weight:800;letter-spacing:-1px;color:var(--text);margin-bottom:2px;">₹420</div>
+                <div style="font-size:11px;color:var(--text3);">3 people</div>
+              </div>
+              <div style="width:1px;background:var(--border);margin:2px 0;"></div>
+              <div style="flex:1;align-items:center;display:flex;flex-direction:column;">
+                <div style="font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text3);margin-bottom:4px;">YOUR SHARE</div>
+                <div style="font-size:28px;font-weight:800;letter-spacing:-1px;color:var(--text);margin-bottom:2px;">₹140</div>
+                <div style="font-size:11px;color:var(--text3);">per person</div>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;justify-content:center;gap:6px;padding:11px;border-top:1px solid var(--border);background:var(--danger-dim);">
+              <div style="font-size:16px;font-weight:800;color:var(--danger);">−₹280</div>
+              <div style="font-size:12px;color:rgba(255,89,89,0.6);">you owe</div>
+            </div>
+          </div>
+
+          <!-- Paid by -->
+          <div style="margin-bottom:14px;">
+            <div class="lbl">PAID BY</div>
+            <div class="card">
+              <div style="display:flex;align-items:center;gap:10px;">
+                <div class="avatar av-g">AR</div>
+                <div style="flex:1;"><div class="row-name">You (Aryan)</div><div class="row-sub">Paid ₹420</div></div>
+                <div style="background:var(--accent-dim);border:1px solid var(--accent-mid);border-radius:10px;padding:4px 10px;font-size:11px;font-weight:600;color:var(--accent);">You paid</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Split with -->
+          <div style="margin-bottom:14px;">
+            <div class="lbl">SPLIT WITH</div>
+            <div class="card card-flush">
+              <div class="row"><div class="avatar av-g">AR</div><div style="flex:1;"><div class="row-name">You</div><div style="font-size:11px;color:var(--accent);margin-top:1px;">paid · settled</div></div><div style="font-size:14px;font-weight:800;color:var(--text2);">₹140</div></div>
+              <div class="divider"></div>
+              <div class="row"><div class="avatar av-b">RJ</div><div style="flex:1;"><div class="row-name">Raj</div></div><div style="font-size:14px;font-weight:800;color:var(--danger);">−₹140</div></div>
+              <div class="divider"></div>
+              <div class="row"><div class="avatar av-p">PR</div><div style="flex:1;"><div class="row-name">Priya</div></div><div style="font-size:14px;font-weight:800;color:var(--danger);">−₹140</div></div>
+            </div>
+          </div>
+
+          <!-- Comments -->
+          <div style="margin-bottom:8px;">
+            <div class="lbl">COMMENTS</div>
+            <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:8px;">
+              <div style="display:flex;align-items:flex-end;gap:8px;">
+                <div class="avatar av-b" style="width:28px;height:28px;font-size:9px;flex-shrink:0;">RJ</div>
+                <div style="max-width:72%;background:var(--card2);border-radius:16px;border-bottom-left-radius:4px;padding:9px 12px;">
+                  <div style="font-size:10px;font-weight:700;color:var(--text2);margin-bottom:3px;">Raj</div>
+                  <div style="font-size:13px;color:var(--text);line-height:1.4;">Did you include the extra bag?</div>
+                  <div style="font-size:9px;color:var(--text3);margin-top:4px;text-align:right;">02:15 PM</div>
+                </div>
+              </div>
+              <div style="display:flex;flex-direction:row-reverse;align-items:flex-end;gap:8px;">
+                <div style="max-width:72%;background:var(--accent);border-radius:16px;border-bottom-right-radius:4px;padding:9px 12px;">
+                  <div style="font-size:13px;color:#000;line-height:1.4;">Yes, ₹20 carry bag included</div>
+                  <div style="font-size:9px;color:rgba(0,0,0,0.5);margin-top:4px;text-align:right;">02:17 PM</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+      <!-- Comment input -->
+      <div style="display:flex;align-items:flex-end;gap:10px;padding:10px 16px 20px;border-top:1px solid var(--border);background:var(--bg);">
+        <div style="flex:1;background:var(--card2);border:1.5px solid var(--border2);border-radius:20px;padding:10px 14px;font-size:13px;color:var(--text3);">Add a comment…</div>
+        <div style="width:38px;height:38px;border-radius:19px;background:var(--card2);border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:16px;color:var(--text3);">↑</div>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════════════════
+         EXPENSE EDIT (stack)
+    ════════════════════════════════════════════ -->
+    <div class="screen" id="s-expense-edit">
+      <div class="status"><div class="s-time">9:41</div><div class="s-icons"><div class="s-dot on"></div><div class="s-dot on"></div><div class="s-dot"></div></div></div>
+      <div class="stack-hdr">
+        <button class="back-btn" onclick="go('expense-detail')">‹</button>
+        <div class="stack-title">Edit Expense</div>
+        <div class="stack-spacer"></div>
+      </div>
+      <div class="scroll">
+        <div style="padding:20px 22px 0;">
+
+          <div style="margin-bottom:20px;">
+            <div class="lbl">TITLE</div>
+            <input class="input-field" type="text" value="Groceries" placeholder="What was this for?">
+          </div>
+
+          <div style="text-align:center;margin-bottom:24px;">
+            <div style="display:inline-flex;align-items:center;gap:4px;background:var(--card2);border:1.5px solid var(--border2);border-radius:20px;padding:14px 24px;">
+              <span style="font-size:36px;font-weight:800;color:var(--text2);">₹</span>
+              <input type="number" value="420" style="font-family:'Plus Jakarta Sans',sans-serif;font-size:52px;font-weight:800;color:var(--text);background:transparent;border:none;outline:none;width:140px;text-align:center;">
+            </div>
+          </div>
+
+          <div style="margin-bottom:22px;">
+            <div class="lbl">CATEGORY</div>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">
+              <div class="cat-chip"><div class="ce">🍛</div><div class="cn">Food</div></div>
+              <div class="cat-chip on"><div class="ce">🛒</div><div class="cn">Groceries</div></div>
+              <div class="cat-chip"><div class="ce">🚗</div><div class="cn">Travel</div></div>
+              <div class="cat-chip"><div class="ce">⚡</div><div class="cn">Bills</div></div>
+              <div class="cat-chip"><div class="ce">☕</div><div class="cn">Chai/Coffee</div></div>
+              <div class="cat-chip"><div class="ce">📱</div><div class="cn">Recharge</div></div>
+            </div>
+          </div>
+
+          <div style="margin-bottom:22px;">
+            <div class="lbl">SPLIT WITH</div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <div class="chip on">Raj</div>
+              <div class="chip on">Priya</div>
+              <div class="chip">Arjun</div>
+              <div class="chip">Deepak</div>
+            </div>
+          </div>
+
+          <button class="cta" onclick="toast('Expense updated ✓');go('expense-detail');" style="margin-bottom:24px;">Save Changes</button>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════════════════
+         JOIN / INVITE (modal)
+    ════════════════════════════════════════════ -->
+    <div class="screen" id="s-join">
+      <div class="status"><div class="s-time">9:41</div><div class="s-icons"><div class="s-dot on"></div><div class="s-dot on"></div><div class="s-dot"></div></div></div>
+      <!-- drag handle / modal indicator -->
+      <div style="display:flex;justify-content:center;padding:12px 0 4px;">
+        <div style="width:36px;height:4px;border-radius:2px;background:var(--border2);"></div>
+      </div>
+      <div class="scroll">
+        <div style="padding:16px 22px 0;">
+
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;">
+            <div style="font-size:20px;font-weight:800;color:var(--text);">Add a Friend</div>
+            <button onclick="go('friends')" style="width:32px;height:32px;border-radius:10px;background:var(--card2);border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px;color:var(--text2);font-family:'Plus Jakarta Sans',sans-serif;">✕</button>
+          </div>
+
+          <div style="margin-bottom:20px;">
+            <div class="lbl">ENTER INVITE CODE</div>
+            <input class="input-field" type="text" placeholder="e.g. ABCD 1234" style="text-align:center;font-size:22px;font-weight:800;letter-spacing:4px;">
+            <div style="font-size:11px;color:var(--text3);margin-top:8px;text-align:center;">Ask your friend to share their 8-character code</div>
+          </div>
+
+          <!-- Your own code share -->
+          <div class="card" style="background:var(--accent-dim);border-color:var(--accent-mid);text-align:center;margin-bottom:20px;">
+            <div class="lbl" style="margin-bottom:6px;color:rgba(0,212,154,0.55);">YOUR CODE</div>
+            <div style="font-size:24px;font-weight:800;letter-spacing:4px;color:var(--accent);margin-bottom:8px;">ARYN K3M9</div>
+            <button onclick="toast('Share sheet opened')" style="background:var(--accent);border:none;border-radius:12px;padding:8px 20px;font-family:'Plus Jakarta Sans',sans-serif;font-size:12px;font-weight:700;color:#000;cursor:pointer;">Share my code</button>
+          </div>
+
+          <button class="cta" onclick="toast('Friend added ✓');go('friends');">Add Friend</button>
+          <div style="height:24px;"></div>
+
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /phone -->
+</div><!-- /wrapper -->
 
 <script>
-const CATS = [{e:'🍛',n:'Food'},{e:'🛒',n:'Grocery'},{e:'🚗',n:'Travel'},{e:'⚡',n:'Bills'},{e:'☕',n:'Chai'},{e:'📱',n:'Recharge'}];
-let catIdx = 0, toastTimer;
+const TAB_SCREENS = ['home','add','settle','insights','friends'];
+const TAB_DEFS = [
+  {id:'home',    icon:'🏠', label:'Home'},
+  {id:'add',     icon:'➕', label:'Add'},
+  {id:'settle',  icon:'💸', label:'Settle'},
+  {id:'insights',icon:'📊', label:'Insights'},
+  {id:'friends', icon:'👥', label:'Friends'},
+];
+let toastTimer;
 
-function go(tab) {
+// Build tab bars once
+TAB_SCREENS.forEach(s => {
+  const el = document.getElementById('tabs-' + s);
+  if (!el) return;
+  el.innerHTML = TAB_DEFS.map(t =>
+    `<button class="tab ${t.id === s ? 'active' : ''}" onclick="go('${t.id}')">
+      <span class="tab-i">${t.icon}</span>
+      <span class="tab-l">${t.label}</span>
+      <span class="t-pip"></span>
+    </button>`
+  ).join('');
+});
+
+function go(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-  document.getElementById('s-' + tab).classList.add('active');
+  const el = document.getElementById('s-' + id);
+  if (el) el.classList.add('active');
+  // Update nav pills
+  document.querySelectorAll('.np').forEach(p => {
+    p.classList.toggle('active', p.getAttribute('onclick')?.includes("'" + id + "'"));
+  });
+  if (id === 'insights') {
+    setTimeout(() => {
+      document.querySelectorAll('.bar-fill').forEach(el => { el.style.width = el.dataset.w; });
+    }, 100);
+  }
 }
 
-function t2(msg) {
+function toast(msg) {
   const t = document.getElementById('toast');
-  t.textContent = '✓ ' + msg;
+  t.textContent = msg;
   t.classList.add('on');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => t.classList.remove('on'), 2400);
 }
 
-function cycleCat(el) {
-  catIdx = (catIdx + 1) % CATS.length;
-  el.textContent = CATS[catIdx].e + ' ' + CATS[catIdx].n;
-}
-
-function quickAdd() {
-  const v = parseInt(document.getElementById('qa-in').value);
-  if (!v || v <= 0) return;
-  t2('₹' + v.toLocaleString('en-IN') + ' added!');
-}
-
 function selCat(el) {
-  document.querySelectorAll('.cat-it').forEach(c => c.classList.remove('on'));
+  document.querySelectorAll('#cat-grid .cat-chip').forEach(c => c.classList.remove('on'));
   el.classList.add('on');
 }
 
-function toggleP(el) {
+function toggleChip(el) {
   el.classList.toggle('on');
   updateSplit();
 }
 
 function updateSplit() {
-  const amt = parseInt(document.getElementById('big-in').value) || 0;
-  const n = document.querySelectorAll('#add-pp .pch.on').length + 1;
+  const amt = parseInt(document.getElementById('add-amt').value) || 0;
+  const n = document.querySelectorAll('#ppl-chips .chip.on').length + 1;
   const each = n > 0 ? Math.round(amt / n) : 0;
-  document.getElementById('split-row').innerHTML =
-    'Each pays <div class="split-pill" id="split-pill">₹' + each.toLocaleString('en-IN') + '</div>&nbsp;(' + n + ' people)';
+  document.getElementById('split-calc').textContent =
+    'Each pays ₹' + each.toLocaleString('en-IN') + ' (' + n + ' people)';
 }
 
-function addExpense() {
-  const v = parseInt(document.getElementById('big-in').value);
-  if (!v || v <= 0) { document.getElementById('big-in').focus(); return; }
-  t2('₹' + v.toLocaleString('en-IN') + ' added!');
+function addExp() {
+  const v = parseInt(document.getElementById('add-amt').value);
+  if (!v || v <= 0) { document.getElementById('add-amt').focus(); return; }
+  toast('✓ ₹' + v.toLocaleString('en-IN') + ' added!');
   setTimeout(() => go('home'), 500);
 }
 </script>

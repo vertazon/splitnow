@@ -29,7 +29,7 @@ This is the foundational UX principle. Every screen, every interaction, every de
 Users make a UPI payment → get an SMS → open Splitwise → forget what they paid → give up.
 
 ### SplitNow's Answer
-- UPI SMS auto-detects payment amount → pre-fills the Quick Add strip
+- UPI SMS auto-detects payment amount → pre-fills the Quick Add strip *(planned — not yet live)*
 - Last-used category and people are pre-selected
 - User just taps **+** to confirm
 - Total interaction: **1–2 taps**
@@ -58,6 +58,18 @@ Users make a UPI payment → get an SMS → open Splitwise → forget what they 
 - Not a replacement for UPI apps
 
 It is a **confirmation layer** that sits between your UPI payment and your shared ledger.
+
+---
+
+## Current State (May 2026)
+
+The app is a functional prototype with live Supabase backend:
+- Phone-number OTP authentication (Supabase Auth)
+- Groups, members, expenses, and settlements are stored in PostgreSQL via Supabase
+- Balance computation is done in-app from live DB data
+- UPI deeplink settlement is implemented but **disabled** (code commented out) — settlements are recorded in the DB as manual confirmations
+- Friends system: users can add friends via 8-character invite codes and share expenses across friend groups
+- RLS (Row-Level Security) is intentionally disabled for the prototype phase
 
 ---
 

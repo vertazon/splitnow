@@ -31,7 +31,7 @@ export function BalanceRow({ balance, onPay }: BalanceRowProps) {
       </Text>
       {owes ? (
         <TouchableOpacity style={styles.payBtn} onPress={() => onPay(balance)}>
-          <Text style={styles.payBtnText}>Pay UPI</Text>
+          <Text style={styles.payBtnText}>Settle</Text>
         </TouchableOpacity>
       ) : (
         <View style={styles.payPlaceholder} />

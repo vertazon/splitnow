@@ -3,6 +3,7 @@ import {
   View,
   Text,
   ScrollView,
+  RefreshControl,
   StyleSheet,
   Platform,
   Animated,
@@ -10,12 +11,13 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { colors } from '@/constants/colors';
 import { fonts } from '@/constants/typography';
 import { formatActivityDate } from '@/constants/dateFormat';
 import { categories } from '@/constants/sampleData';
-import { expensesQueryKey, fetchExpenses, type ExpenseWithSplits } from '@/hooks/useExpenses';
+import { fetchExpenses, type ExpenseWithSplits } from '@/hooks/useExpenses';
+import { qk } from '@/lib/queryKeys';
 import { useMembers } from '@/hooks/useMembers';
 import { DEV_USER_ID, DEV_GROUP_ID } from '@/lib/auth';
 import { useUserStore } from '@/store/useUserStore';
@@ -92,9 +94,19 @@ const BAR_COLORS = [colors.accent, colors.blue, colors.orange, colors.purple, co
 export default function InsightsScreen() {
   const [shouldAnimate, setShouldAnimate] = useState(false);
   const hasAnimated = useRef(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   const groupId = useGroupStore(s => s.currentGroupId) ?? DEV_GROUP_ID;
   const currentUserId = useUserStore(s => s.currentUserId) ?? DEV_USER_ID;
+  const qc = useQueryClient();
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    Promise.all([
+      qc.refetchQueries({ queryKey: qk.expenses.all }),
+      qc.refetchQueries({ queryKey: qk.members.all }),
+    ]).finally(() => setRefreshing(false));
+  }, [qc]);
 
   useFocusEffect(
     useCallback(() => {
@@ -109,7 +121,7 @@ export default function InsightsScreen() {
   // Read from the shared React Query cache — same key as useExpenses in Home tab,
   // but without the realtime useEffect so we don't open a duplicate channel.
   const { data: expenses = [], isLoading } = useQuery<ExpenseWithSplits[]>({
-    queryKey: expensesQueryKey(groupId),
+    queryKey: qk.expenses.list(groupId),
     queryFn: () => fetchExpenses(groupId),
     enabled: !!groupId,
   });
@@ -209,6 +221,14 @@ export default function InsightsScreen() {
         style={styles.scroll}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.accent}
+            colors={[colors.accent]}
+          />
+        }
       >
         <Text style={styles.title}>Insights</Text>
 

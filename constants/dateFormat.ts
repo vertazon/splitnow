@@ -27,7 +27,8 @@ export function formatActivityDate(iso: string | null | undefined): string {
 }
 
 /** "Aryan Sharma" → "AS"; "Aryan" → "AR" (first two letters fallback). */
-export function initialsFromName(name: string): string {
+export function initialsFromName(name: string | null | undefined): string {
+  if (!name) return '?';
   const trimmed = name.trim();
   if (!trimmed) return '?';
   const parts = trimmed.split(/\s+/);

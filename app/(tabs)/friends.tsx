@@ -1,7 +1,7 @@
 import { useCallback, useState, useRef } from 'react';
 import {
   View, Text, StyleSheet, Platform, TouchableOpacity,
-  Share, ActivityIndicator, ScrollView, Alert,
+  Share, ActivityIndicator, ScrollView, RefreshControl, Alert,
   TextInput, Keyboard,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -11,6 +11,8 @@ import { fonts } from '@/constants/typography';
 import { initialsFromName } from '@/constants/dateFormat';
 import { useUserStore } from '@/store/useUserStore';
 import { useFriends, useRemoveFriend } from '@/hooks/useFriends';
+import { useQueryClient } from '@tanstack/react-query';
+import { qk } from '@/lib/queryKeys';
 import type { AvatarColor, User } from '@/types/database';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -271,10 +273,18 @@ export default function FriendsScreen() {
   const router        = useRouter();
   const currentUser   = useUserStore(s => s.currentUser);
   const currentUserId = useUserStore(s => s.currentUserId);
+  const qc = useQueryClient();
+  const [refreshing, setRefreshing] = useState(false);
 
   const { data: friends = [], isLoading } = useFriends(currentUserId);
   const removeFriend = useRemoveFriend();
   const [connecting, setConnecting] = useState(false);
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    qc.refetchQueries({ queryKey: qk.friends.all })
+      .finally(() => setRefreshing(false));
+  }, [qc]);
 
   const inviteCode = currentUser?.invite_code ?? null;
 
@@ -322,6 +332,14 @@ export default function FriendsScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.accent}
+            colors={[colors.accent]}
+          />
+        }
       >
         {/* Header */}
         <View style={styles.headerRow}>

@@ -3,14 +3,16 @@ import {
   View,
   Text,
   ScrollView,
+  RefreshControl,
   StyleSheet,
   Platform,
-  Linking,
+  // Linking, // UPI deeplinks — disabled until UPI settlement is re-enabled
   TouchableOpacity,
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { useQueryClient } from '@tanstack/react-query';
 import { colors, avatarColors } from '@/constants/colors';
 import { fonts } from '@/constants/typography';
 import { formatAmount } from '@/constants/amountUtils';
@@ -20,12 +22,13 @@ import { DEV_USER_ID } from '@/lib/auth';
 import { useUserStore } from '@/store/useUserStore';
 import { useGroupStore } from '@/store/useGroupStore';
 import { useExpenses, type ExpenseWithSplits } from '@/hooks/useExpenses';
-import { useBalances } from '@/hooks/useBalances';
+import { useBalances, useNetBalance } from '@/hooks/useBalances';
 import { useMembers } from '@/hooks/useMembers';
 import { BalanceRow } from '@/components/BalanceCard';
 import { ToastNotification } from '@/components/ToastNotification';
 import { ActivityRow } from '@/components/ActivityRow';
 import type { MemberLite } from '@/components/ActivityRow';
+import { qk } from '@/lib/queryKeys';
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
@@ -36,7 +39,19 @@ export default function HomeScreen() {
 
   const { data: expenses = [], isLoading: expLoading, error: expError } = useExpenses(groupId);
   const { data: balances = [], isLoading: balLoading } = useBalances(groupId);
+  const { net: netAmt } = useNetBalance(groupId);
   const { data: members = [] } = useMembers(groupId);
+
+  const qc = useQueryClient();
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    Promise.all([
+      qc.refetchQueries({ queryKey: qk.expenses.all }),
+      qc.refetchQueries({ queryKey: qk.balances.all }),
+      qc.refetchQueries({ queryKey: qk.members.all }),
+    ]).finally(() => setRefreshing(false));
+  }, [qc]);
 
   const [toast, setToast] = useState('');
   const [toastVisible, setToastVisible] = useState(false);
@@ -50,12 +65,13 @@ export default function HomeScreen() {
   }, []);
 
   const handlePay = useCallback((b: Balance) => {
-    if (b.upiId) {
-      const amt = Math.abs(b.amount);
-      const url = `upi://pay?pa=${b.upiId}&pn=${b.name}&am=${amt}&cu=INR`;
-      Linking.openURL(url).catch(() => {});
-    }
-    showToast(`Opening GPay for ${b.name}…`);
+    // UPI deeplink — disabled until UPI settlement is re-enabled
+    // if (b.upiId) {
+    //   const amt = Math.abs(b.amount);
+    //   const url = `upi://pay?pa=${b.upiId}&pn=${b.name}&am=${amt}&cu=INR`;
+    //   Linking.openURL(url).catch(() => {});
+    // }
+    showToast(`Marked as paid to ${b.name} ✓`);
   }, [showToast]);
 
   // Map for fast lookup inside ActivityRow + MiniAvatars
@@ -63,7 +79,6 @@ export default function HomeScreen() {
     members.map(m => [m.id, { id: m.id, name: m.name ?? m.id, color: (m.avatar_color ?? 'green') as AvatarColor }])
   );
 
-  const netAmt = balances.reduce((s, b) => s + b.amount, 0);
   const isOwed = netAmt >= 0;
   const owedToCount = balances.filter(b => b.amount < 0).length;
   const owesYouCount = balances.filter(b => b.amount > 0).length;
@@ -83,6 +98,14 @@ export default function HomeScreen() {
         style={styles.scroll}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.accent}
+            colors={[colors.accent]}
+          />
+        }
       >
         {/* Header */}
         <View style={styles.header}>
@@ -92,10 +115,7 @@ export default function HomeScreen() {
               {new Date().toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}
             </Text>
           </View>
-          <TouchableOpacity
-            onPress={() => router.push('/profile' as never)}
-            activeOpacity={0.75}
-          >
+          <TouchableOpacity onPress={() => router.push('/account' as never)} activeOpacity={0.75}>
             <View style={[styles.avatar, { backgroundColor: av.bg }]}>
               <Text style={[styles.avatarText, { color: av.text }]}>{userInitials}</Text>
             </View>

@@ -1,27 +1,23 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
   StyleSheet, KeyboardAvoidingView, Platform,
-  ScrollView, ActivityIndicator, Alert, Share,
+  ScrollView, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { colors, avatarColors } from '@/constants/colors';
 import { fonts } from '@/constants/typography';
-import { saveProfile, signOut } from '@/hooks/useAuth';
+import { saveProfile } from '@/hooks/useAuth';
 import { useUserStore } from '@/store/useUserStore';
 import { useGroupStore } from '@/store/useGroupStore';
-import { useMembers } from '@/hooks/useMembers';
-import { useBalances } from '@/hooks/useBalances';
+import { useBalances, useNetBalance } from '@/hooks/useBalances';
 import { initialsFromName } from '@/constants/dateFormat';
 import { formatAmount } from '@/constants/amountUtils';
 import type { AvatarColor } from '@/types/database';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-
-function formatInviteCode(code: string): string {
-  return `${code.slice(0, 4)} ${code.slice(4)}`;
-}
 
 function memberSince(iso: string | null | undefined): string {
   if (!iso) return '';
@@ -55,8 +51,8 @@ export default function ProfileScreen() {
   const currentUser = useUserStore(s => s.currentUser);
   const groupId = useGroupStore(s => s.currentGroupId);
 
-  const { data: members = [] } = useMembers(groupId);
   const { data: balances = [] } = useBalances(groupId);
+  const { net: netAmt } = useNetBalance(groupId);
 
   const [name, setName]               = useState(currentUser?.name ?? '');
   const [upiId, setUpiId]             = useState(currentUser?.upi_id ?? '');
@@ -66,6 +62,16 @@ export default function ProfileScreen() {
   const [error, setError]   = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  // Re-seed the form when currentUser arrives or changes (e.g. after a fresh
+  // session restore). Without this, the form would stick at empty strings if
+  // the screen mounted before the profile fetch resolved.
+  useEffect(() => {
+    if (!currentUser) return;
+    setName(currentUser.name ?? '');
+    setUpiId(currentUser.upi_id ?? '');
+    setAvatarColor((currentUser.avatar_color as AvatarColor) ?? 'green');
+  }, [currentUser?.id]);
+
   const isValid    = name.trim().length >= 2;
   const hasChanges =
     name.trim()  !== (currentUser?.name ?? '')         ||
@@ -74,15 +80,6 @@ export default function ProfileScreen() {
 
   const av      = avatarColors[avatarColor] ?? avatarColors.green;
   const preview = name.trim() ? initialsFromName(name) : '?';
-
-  // Net position for the quick stat
-  const netAmt = useMemo(() => balances.reduce((s, b) => s + b.amount, 0), [balances]);
-
-  // Other group members (excluding current user)
-  const otherMembers = useMemo(
-    () => members.filter(m => m.id !== currentUser?.id),
-    [members, currentUser]
-  );
 
   const handleSave = useCallback(async () => {
     if (!isValid || loading) return;
@@ -101,32 +98,6 @@ export default function ProfileScreen() {
     else router.back();
   }, [isValid, loading, name, avatarColor, upiId, router]);
 
-  const handleShareInvite = useCallback(async () => {
-    const code = currentUser?.invite_code;
-    if (!code) return;
-    await Share.share({
-      title: 'Add me on SplitNow',
-      message:
-        `Hey! I use SplitNow to split expenses.\n\n` +
-        `Add me as a friend:\n\n` +
-        `1. Open SplitNow\n` +
-        `2. Go to Friends tab\n` +
-        `3. Tap "Add a friend" and enter my code:\n\n` +
-        `  ${formatInviteCode(code)}\n`,
-    });
-  }, [currentUser?.invite_code]);
-
-  const handleSignOut = useCallback(() => {
-    Alert.alert(
-      'Sign out',
-      "You'll need to verify your phone number to sign back in.",
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Sign out', style: 'destructive', onPress: async () => { await signOut(); } },
-      ]
-    );
-  }, []);
-
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
@@ -138,11 +109,16 @@ export default function ProfileScreen() {
 
           {/* ── Header ── */}
           <View style={styles.header}>
-            <TouchableOpacity onPress={() => router.back()} style={styles.closeBtn} activeOpacity={0.75}>
-              <Text style={styles.closeBtnText}>✕</Text>
+            <TouchableOpacity
+              style={styles.backBtn}
+              onPress={() => router.back()}
+              activeOpacity={0.7}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Ionicons name="chevron-back" size={20} color={colors.text} />
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>Profile</Text>
-            <View style={{ width: 36 }} />
+            <Text style={styles.headerTitle}>Edit Profile</Text>
+            <View style={styles.headerSpacer} />
           </View>
 
           {/* ── Identity card ── */}
@@ -169,7 +145,7 @@ export default function ProfileScreen() {
             </View>
             <View style={styles.statDivider} />
             <View style={styles.statBox}>
-              <Text style={styles.statValue}>{otherMembers.length + 1}</Text>
+              <Text style={styles.statValue}>{balances.length + 1}</Text>
               <Text style={styles.statLabel}>GROUP SIZE</Text>
             </View>
             <View style={styles.statDivider} />
@@ -178,75 +154,6 @@ export default function ProfileScreen() {
               <Text style={styles.statLabel}>UPI SET</Text>
             </View>
           </View>
-
-          {/* ── Invite ── */}
-          {currentUser?.invite_code && (
-            <View style={styles.section}>
-              <Text style={styles.sectionLabel}>INVITE A FRIEND</Text>
-              <View style={styles.inviteCard}>
-                <View style={styles.inviteTop}>
-                  <View>
-                    <Text style={styles.inviteCodeLabel}>YOUR CODE</Text>
-                    <Text style={styles.inviteCode}>
-                      {formatInviteCode(currentUser.invite_code)}
-                    </Text>
-                  </View>
-                  <TouchableOpacity
-                    style={styles.inviteShareBtn}
-                    onPress={handleShareInvite}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={styles.inviteShareBtnText}>Share →</Text>
-                  </TouchableOpacity>
-                </View>
-                <Text style={styles.inviteHint}>
-                  Friends who tap your link are added instantly.
-                </Text>
-              </View>
-            </View>
-          )}
-
-          {/* ── Group members ── */}
-          {otherMembers.length > 0 && (
-            <View style={styles.section}>
-              <Text style={styles.sectionLabel}>YOUR GROUP</Text>
-              <View style={styles.card}>
-                {otherMembers.map((m, i) => {
-                  const mac = avatarColors[(m.avatar_color ?? 'green') as AvatarColor] ?? avatarColors.green;
-                  return (
-                    <View key={m.id}>
-                      <View style={styles.memberRow}>
-                        <View style={[styles.memberAvatar, { backgroundColor: mac.bg }]}>
-                          <Text style={[styles.memberAvatarText, { color: mac.text }]}>
-                            {initialsFromName(m.name ?? '?')}
-                          </Text>
-                        </View>
-                        <View style={styles.memberInfo}>
-                          <Text style={styles.memberName}>{m.name ?? '—'}</Text>
-                          {m.upi_id ? (
-                            <Text style={styles.memberUpi}>{m.upi_id}</Text>
-                          ) : (
-                            <Text style={styles.memberUpiMissing}>No UPI set</Text>
-                          )}
-                        </View>
-                        {(() => {
-                          const bal = balances.find(b => b.userId === m.id);
-                          if (!bal || bal.amount === 0) return null;
-                          const isOwed = bal.amount < 0;
-                          return (
-                            <Text style={[styles.memberBal, isOwed ? styles.danger : styles.accent]}>
-                              {isOwed ? '−' : '+'}{formatAmount(Math.abs(bal.amount))}
-                            </Text>
-                          );
-                        })()}
-                      </View>
-                      {i < otherMembers.length - 1 && <View style={styles.divider} />}
-                    </View>
-                  );
-                })}
-              </View>
-            </View>
-          )}
 
           {/* ── Edit section ── */}
           <View style={styles.section}>
@@ -323,11 +230,6 @@ export default function ProfileScreen() {
             }
           </TouchableOpacity>
 
-          {/* ── Sign out ── */}
-          <TouchableOpacity style={styles.signOutBtn} onPress={handleSignOut} activeOpacity={0.75}>
-            <Text style={styles.signOutText}>Sign out</Text>
-          </TouchableOpacity>
-
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -344,18 +246,21 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     marginBottom: 24,
     paddingTop: 8,
   },
-  closeBtn: {
+  backBtn: {
     width: 36, height: 36, borderRadius: 12,
     backgroundColor: colors.cardElevated,
-    borderWidth: 1, borderColor: colors.borderEmphasis,
+    borderWidth: 1, borderColor: colors.border,
     alignItems: 'center', justifyContent: 'center',
   },
-  closeBtnText: { fontFamily: fonts.dmSans, fontSize: 14, color: colors.text2 },
-  headerTitle: { fontFamily: fonts.syne, fontSize: 18, fontWeight: '800', color: colors.text },
+  headerTitle: {
+    flex: 1,
+    textAlign: 'center',
+    fontFamily: fonts.syne, fontSize: 17, fontWeight: '800', color: colors.text,
+  },
+  headerSpacer: { width: 36 },
 
   // Identity card
   identityCard: {
@@ -523,7 +428,4 @@ const styles = StyleSheet.create({
   ctaDim: { opacity: 0.4 },
   ctaText: { fontFamily: fonts.syne, fontSize: 16, fontWeight: '800', color: '#000' },
 
-  // Sign out
-  signOutBtn: { marginTop: 16, alignItems: 'center', paddingVertical: 14 },
-  signOutText: { fontFamily: fonts.dmSansSemiBold, fontSize: 14, fontWeight: '600', color: colors.danger },
 });

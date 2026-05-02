@@ -111,17 +111,31 @@ export type SplitInsert      = Omit<ExpenseSplit, 'id'>                         
 export type CommentInsert    = Omit<ExpenseComment, 'id' | 'created_at' | 'parent_id'> & Partial<Pick<ExpenseComment, 'id' | 'created_at' | 'parent_id'>>;
 export type SettlementInsert = Omit<Settlement, 'id' | 'settled_at' | 'status'>       & Partial<Pick<Settlement, 'id' | 'settled_at' | 'status'>>;
 
-// Minimal Database type for Supabase client generic. Expand as needed.
+// Database type consumed by `createClient<Database>` in lib/supabase.ts.
+//
+// `Database['public']` must satisfy postgrest-js's `GenericSchema`:
+//   { Tables: Record<string, GenericTable>; Views: ...; Functions: ... }
+// and each Table must have `{ Row, Insert, Update, Relationships }`.
+// Without the Views/Functions stubs *and* Relationships on every table, the
+// Schema generic collapses to `never` and every `.from('x').insert(...)` call
+// type-checks against `never` — that's the source of the "argument of type X
+// is not assignable to parameter of type 'never'" errors.
+type Tbl<R, I, U = Partial<R>> = { Row: R; Insert: I; Update: U; Relationships: [] };
+
 export interface Database {
   public: {
     Tables: {
-      users:             { Row: User;            Insert: UserInsert;       Update: Partial<User> };
-      groups:            { Row: Group;           Insert: GroupInsert;      Update: Partial<Group> };
-      group_members:     { Row: GroupMember;     Insert: GroupMember;      Update: Partial<GroupMember> };
-      expenses:          { Row: Expense;         Insert: ExpenseInsert;    Update: Partial<Expense> };
-      expense_splits:    { Row: ExpenseSplit;    Insert: SplitInsert;      Update: Partial<ExpenseSplit> };
-      expense_comments:  { Row: ExpenseComment;  Insert: CommentInsert;    Update: Partial<ExpenseComment> };
-      settlements:       { Row: Settlement;      Insert: SettlementInsert; Update: Partial<Settlement> };
+      users:             Tbl<User,           UserInsert>;
+      groups:            Tbl<Group,          GroupInsert>;
+      group_members:     Tbl<GroupMember,    GroupMember>;
+      expenses:          Tbl<Expense,        ExpenseInsert>;
+      expense_splits:    Tbl<ExpenseSplit,   SplitInsert>;
+      expense_comments:  Tbl<ExpenseComment, CommentInsert>;
+      settlements:       Tbl<Settlement,     SettlementInsert>;
     };
+    Views: { [_ in never]: never };
+    Functions: { [_ in never]: never };
+    Enums: { [_ in never]: never };
+    CompositeTypes: { [_ in never]: never };
   };
 }

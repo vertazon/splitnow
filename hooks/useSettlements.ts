@@ -2,11 +2,12 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useUserStore } from '@/store/useUserStore';
 import { DEV_USER_ID } from '@/lib/auth';
+import { qk } from '@/lib/queryKeys';
 import type { Settlement } from '@/types/database';
 
 export function useSettlements(groupId: string) {
   return useQuery<Settlement[]>({
-    queryKey: ['settlements', groupId],
+    queryKey: qk.settlements.list(groupId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from('settlements')
@@ -33,10 +34,12 @@ export interface SettleUpInput {
  */
 export function useSettleUp() {
   const qc = useQueryClient();
-  const currentUserId = useUserStore.getState().currentUserId ?? DEV_USER_ID;
 
   return useMutation({
     mutationFn: async (input: SettleUpInput) => {
+      // Read fresh at execution time so a user-switch mid-session can't leak
+      // a settlement from the wrong account.
+      const currentUserId = useUserStore.getState().currentUserId ?? DEV_USER_ID;
       const { error } = await supabase.from('settlements').insert({
         group_id:  input.groupId,
         from_user: currentUserId,
@@ -48,8 +51,8 @@ export function useSettleUp() {
       if (error) throw error;
     },
     onSuccess: (_d, vars) => {
-      qc.invalidateQueries({ queryKey: ['balances', vars.groupId] });
-      qc.invalidateQueries({ queryKey: ['settlements', vars.groupId] });
+      qc.invalidateQueries({ queryKey: qk.balances.all });
+      qc.invalidateQueries({ queryKey: qk.settlements.list(vars.groupId) });
     },
   });
 }

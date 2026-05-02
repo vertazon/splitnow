@@ -3,11 +3,12 @@ import {
   View,
   Text,
   ScrollView,
+  RefreshControl,
   StyleSheet,
   Platform,
   TouchableOpacity,
   ActivityIndicator,
-  Linking,
+  // Linking, // UPI deeplinks — disabled until UPI settlement is re-enabled
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, {
@@ -24,14 +25,26 @@ import { ToastNotification } from '@/components/ToastNotification';
 import { useBalances } from '@/hooks/useBalances';
 import { useSettleUp } from '@/hooks/useSettlements';
 import { useGroupStore } from '@/store/useGroupStore';
+import { useQueryClient } from '@tanstack/react-query';
+import { qk } from '@/lib/queryKeys';
 import type { Balance } from '@/types/database';
 
 export default function SettleScreen() {
   const groupId = useGroupStore(s => s.currentGroupId);
+  const qc = useQueryClient();
+  const [refreshing, setRefreshing] = useState(false);
   const [toast, setToast] = useState('');
   const [toastVisible, setToastVisible] = useState(false);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const ctaScale = useSharedValue(1);
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    Promise.all([
+      qc.refetchQueries({ queryKey: qk.balances.all }),
+      qc.refetchQueries({ queryKey: qk.settlements.all }),
+    ]).finally(() => setRefreshing(false));
+  }, [qc]);
 
   const { data: balances = [], isLoading } = useBalances(groupId);
   const settleUp = useSettleUp();
@@ -53,16 +66,17 @@ export default function SettleScreen() {
     transform: [{ scale: ctaScale.value }],
   }));
 
-  const openUpi = (b: Balance) => {
-    if (!b.upiId) return;
-    const url = `upi://pay?pa=${b.upiId}&pn=${encodeURIComponent(b.name)}&am=${Math.abs(b.amount)}&cu=INR`;
-    Linking.openURL(url).catch(() => {});
-  };
+  // UPI deeplink — disabled until UPI settlement is re-enabled
+  // const openUpi = (b: Balance) => {
+  //   if (!b.upiId) return;
+  //   const url = `upi://pay?pa=${b.upiId}&pn=${encodeURIComponent(b.name)}&am=${Math.abs(b.amount)}&cu=INR`;
+  //   Linking.openURL(url).catch(() => {});
+  // };
 
   const handlePayMember = (b: Balance) => {
-    openUpi(b);
+    // openUpi(b); // UPI deeplink — disabled
     settleUp.mutate({ groupId: groupId, toUserId: b.userId, amount: Math.abs(b.amount) });
-    showToast(`Opening GPay for ${b.name}…`);
+    showToast(`Settled with ${b.name} ✓`);
   };
 
   const handleSettleAll = () => {
@@ -73,8 +87,8 @@ export default function SettleScreen() {
     owedBalances.forEach(b => {
       settleUp.mutate({ groupId: groupId, toUserId: b.userId, amount: Math.abs(b.amount) });
     });
-    if (owedBalances.length > 0) openUpi(owedBalances[0]);
-    showToast('Opening UPI for all settlements…');
+    // if (owedBalances.length > 0) openUpi(owedBalances[0]); // UPI deeplink — disabled
+    showToast('All settlements recorded ✓');
   };
 
   if (isLoading) {
@@ -93,6 +107,14 @@ export default function SettleScreen() {
         style={styles.scroll}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.accent}
+            colors={[colors.accent]}
+          />
+        }
       >
         <Text style={styles.title}>Settle Up</Text>
 
@@ -114,7 +136,7 @@ export default function SettleScreen() {
           <Animated.View style={[ctaStyle, styles.ctaWrap]}>
             <TouchableOpacity style={styles.ctaDanger} onPress={handleSettleAll} activeOpacity={0.9}>
               <Text style={styles.ctaText}>
-                ⚡ Settle All · Pay ₹{settleTotal.toLocaleString('en-IN')}
+                ⚡ Settle All · ₹{settleTotal.toLocaleString('en-IN')}
               </Text>
             </TouchableOpacity>
           </Animated.View>
@@ -137,14 +159,15 @@ export default function SettleScreen() {
                       </View>
                       <View style={styles.settleInfo}>
                         <Text style={styles.settleName}>You → {b.name}</Text>
-                        <Text style={styles.settleVpa}>{b.upiId ?? '—'}</Text>
+                        {/* UPI ID sub-text — disabled until UPI settlement is re-enabled */}
+                        {/* <Text style={styles.settleVpa}>{b.upiId ?? '—'}</Text> */}
                       </View>
                       <Text style={styles.settleAmount}>{formatAmount(b.amount)}</Text>
                       <TouchableOpacity
                         style={styles.upiBtn}
                         onPress={() => handlePayMember(b)}
                       >
-                        <Text style={styles.upiBtnText}>UPI →</Text>
+                        <Text style={styles.upiBtnText}>Settle</Text>
                       </TouchableOpacity>
                     </View>
                     {i < owedBalances.length - 1 && <View style={styles.divider} />}

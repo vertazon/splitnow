@@ -1,4 +1,6 @@
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { User } from '@/types/database';
 
 interface UserState {
@@ -13,12 +15,22 @@ interface UserState {
   clearUser: () => void;
 }
 
-export const useUserStore = create<UserState>((set) => ({
-  currentUserId: null,
-  currentUser: null,
-  isLoading: true,   // true until the first session check resolves
-  setCurrentUserId: (id) => set({ currentUserId: id }),
-  setCurrentUser: (user) => set({ currentUser: user, currentUserId: user?.id ?? null }),
-  setLoading: (loading) => set({ isLoading: loading }),
-  clearUser: () => set({ currentUserId: null, currentUser: null }),
-}));
+export const useUserStore = create<UserState>()(
+  persist(
+    (set) => ({
+      currentUserId: null,
+      currentUser: null,
+      isLoading: true,   // true until the first session check resolves
+      setCurrentUserId: (id) => set({ currentUserId: id }),
+      setCurrentUser: (user) => set({ currentUser: user, currentUserId: user?.id ?? null }),
+      setLoading: (loading) => set({ isLoading: loading }),
+      clearUser: () => set({ currentUserId: null, currentUser: null }),
+    }),
+    {
+      name: 'splitnow.user',
+      storage: createJSONStorage(() => AsyncStorage),
+      // isLoading is derived from session check — never persist it.
+      partialize: (s) => ({ currentUserId: s.currentUserId, currentUser: s.currentUser }),
+    },
+  ),
+);

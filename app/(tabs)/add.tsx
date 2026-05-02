@@ -26,10 +26,11 @@ import { PersonChip } from '@/components/PersonChip';
 import { CategoryPickerModal } from '@/components/CategoryPickerModal';
 import { ToastNotification } from '@/components/ToastNotification';
 import { sanitizeAmountInput, isValidAmount, parseAmount, formatAmount } from '@/constants/amountUtils';
+import { initialsFromName } from '@/constants/dateFormat';
 import { DEV_USER_ID } from '@/lib/auth';
 import { useGroupStore } from '@/store/useGroupStore';
 import { useUserStore } from '@/store/useUserStore';
-import { useFriends } from '@/hooks/useFriends';
+import { useMembers } from '@/hooks/useMembers';
 import { useAddExpense } from '@/hooks/useExpenses';
 import type { AvatarColor } from '@/types/database';
 
@@ -46,12 +47,13 @@ export default function AddScreen() {
   const router = useRouter();
   const groupId = useGroupStore(s => s.currentGroupId);
   const currentUserId = useUserStore(s => s.currentUserId) ?? DEV_USER_ID;
-  const { data: friends = [] } = useFriends(currentUserId);
+  const { data: members = [] } = useMembers(groupId);
   const addExpense = useAddExpense();
   const { width } = useWindowDimensions();
   const chipWidth = (width - 44 - 16) / 3;
 
-  const splitPeople = friends;
+  // Everyone in the group except the current user (they are always the payer/participant)
+  const splitPeople = members.filter(m => m.id !== currentUserId);
 
   const [amount, setAmount] = useState('');
   const [title, setTitle] = useState('');
@@ -252,10 +254,10 @@ export default function AddScreen() {
             {splitPeople.map(m => (
               <PersonChip
                 key={m.id}
-                label={m.name}
+                label={m.name ?? '?'}
                 selected={selectedPeople.has(m.id)}
                 onPress={() => togglePerson(m.id)}
-                initials={m.name.slice(0, 2).toUpperCase()}
+                initials={initialsFromName(m.name)}
                 avatarColor={(m.avatar_color ?? 'green') as AvatarColor}
               />
             ))}

@@ -17,7 +17,9 @@ import type { AvatarColor } from '@/types/database';
 import { DEV_USER_ID } from '@/lib/auth';
 import { useUserStore } from '@/store/useUserStore';
 import { useGroupStore } from '@/store/useGroupStore';
-import { useExpenses, type ExpenseWithSplits } from '@/hooks/useExpenses';
+import { useQuery } from '@tanstack/react-query';
+import { fetchExpenses, type ExpenseWithSplits } from '@/hooks/useExpenses';
+import { qk } from '@/lib/queryKeys';
 import { useMembers } from '@/hooks/useMembers';
 import { ActivityRow, NET_COLORS, getNetBalance } from '@/components/ActivityRow';
 import type { MemberLite } from '@/components/ActivityRow';
@@ -40,7 +42,13 @@ export default function ExpensesScreen() {
   const groupId = useGroupStore(s => s.currentGroupId);
   const currentUserId = useUserStore(s => s.currentUserId) ?? DEV_USER_ID;
 
-  const { data: expenses = [], isLoading, error } = useExpenses(groupId);
+  // Use useQuery directly (not useExpenses) so we read from the shared cache
+  // without opening a second realtime channel — Home tab already owns that subscription.
+  const { data: expenses = [], isLoading, error } = useQuery<ExpenseWithSplits[]>({
+    queryKey: qk.expenses.list(groupId),
+    queryFn: () => fetchExpenses(groupId as string),
+    enabled: !!groupId,
+  });
   const { data: members = [] } = useMembers(groupId);
 
   const [activeFilter, setActiveFilter] = useState<Filter>('all');

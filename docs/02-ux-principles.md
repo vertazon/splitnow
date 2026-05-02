@@ -50,6 +50,14 @@ These are applied automatically. The user overrides, not selects.
 - Primary CTAs: full-width, minimum 52px height
 - Chips: minimum 36px height with horizontal padding
 
+### Navigation Model
+All secondary screens use standard stack navigation with `slide_from_right` animation. No custom overlays or modal hacks in the navigation layer.
+
+- Tab bar: 4 tabs (Home, Add, Settle, Insights, Friends)
+- Stack screens: Account, Profile, Expenses list, Expense detail, Expense edit, Join group
+- Back navigation: always `router.back()` — predictable, system-standard
+- Account screen (`app/account.tsx`) is the user profile hub, reached from the avatar on Home
+
 ---
 
 ## Screen-by-Screen UX Intent
@@ -69,8 +77,8 @@ These are applied automatically. The user overrides, not selects.
 
 **Secondary elements:**
 - Balance card: net position at a glance (you owe X / owed X)
-- Per-person balances with inline Pay UPI button
-- Recent activity (last 3–5 entries)
+- Per-person balances with inline Settle button
+- Recent activity (last 5 entries, tap to open detail)
 
 ### Add Screen (Full Entry)
 **Purpose:** For edge cases when Quick Add isn't enough — larger amount, different split type, or adding a description.
@@ -88,8 +96,10 @@ These are applied automatically. The user overrides, not selects.
 
 **Key insight:** Show optimized settlements, not raw balances. Instead of showing a complex web of debts, show the minimum number of transactions to settle everything.
 
-**Primary CTA:** "Settle All" — opens UPI for the total amount.
-**Secondary:** Per-person UPI buttons for individual settlements.
+**Current state:** UPI deeplinks are disabled. Settlements are recorded in the database as confirmed manually. Button labels say "Settle" not "UPI →". Toasts confirm recording, not payment.
+
+**Primary CTA:** "⚡ Settle All · ₹X" — records all settlements.
+**Secondary:** Per-person "Settle" buttons for individual confirmations.
 
 ### Insights Screen
 **Purpose:** Secondary, not critical path. Shows spending patterns over time.
@@ -99,6 +109,29 @@ These are applied automatically. The user overrides, not selects.
 - Category breakdown (bar chart)
 - Most frequent expense partner
 - Personal (non-split) expenses
+
+### Friends Screen
+**Purpose:** Manage the social graph — who you split with.
+
+- View current friends list with balances
+- Add a friend via 8-character invite code
+- Share your own invite code with the native share sheet
+
+### Account Screen (`app/account.tsx`)
+**Purpose:** Hub for user identity and app settings. Reached from the avatar button on Home.
+
+**Layout:**
+- User card: avatar, name, phone, UPI ID
+- ACCOUNT section: Edit Profile → `app/profile.tsx`, Manage Groups (placeholder), Settings (coming soon)
+- GENERAL section: Invite a Friend (native share sheet with invite code)
+- Sign out (red, Alert confirmation)
+
+### Profile Screen (`app/profile.tsx`)
+**Purpose:** Edit user profile data only — name, avatar colour, UPI ID. Not a hub.
+
+- Reached from Account → Edit Profile
+- ✕ close button on the right
+- Saves changes to Supabase users table
 
 ---
 
@@ -112,14 +145,15 @@ These are applied automatically. The user overrides, not selects.
 | Mandatory description/title field | Forces typing in critical path |
 | Split type selection upfront | Advanced feature, not default path |
 | Empty states with no defaults | Forces user to start from zero every time |
+| Custom modal/overlay for navigation | Breaks back-button behavior, hard to maintain |
 
 ---
 
-## The UPI SMS Auto-Fill Flow
+## The UPI SMS Auto-Fill Flow (Planned)
 
-This is SplitNow's killer feature for the Indian market.
+This is SplitNow's killer feature for the Indian market. Not yet implemented.
 
-**Flow:**
+**Intended flow:**
 1. User pays ₹540 on GPay
 2. Bank sends SMS: *"INR 540.00 debited from A/c...to VPA raj@okaxis..."*
 3. SplitNow reads SMS (with permission)

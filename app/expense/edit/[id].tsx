@@ -16,6 +16,7 @@ import { PersonChip } from '@/components/PersonChip';
 import { ToastNotification } from '@/components/ToastNotification';
 import { CategoryPickerModal } from '@/components/CategoryPickerModal';
 import { sanitizeAmountInput, isValidAmount, parseAmount } from '@/constants/amountUtils';
+import { initialsFromName } from '@/constants/dateFormat';
 import { DEV_USER_ID } from '@/lib/auth';
 import { useGroupStore } from '@/store/useGroupStore';
 import { useUserStore } from '@/store/useUserStore';
@@ -263,10 +264,10 @@ export default function EditExpenseScreen() {
             {splitPeople.map(m => (
               <PersonChip
                 key={m.id}
-                label={m.name}
+                label={m.name ?? '?'}
                 selected={selectedPeople.has(m.id)}
                 onPress={() => togglePerson(m.id)}
-                initials={m.name.slice(0, 2).toUpperCase()}
+                initials={initialsFromName(m.name)}
                 avatarColor={(m.avatar_color ?? 'green') as AvatarColor}
               />
             ))}

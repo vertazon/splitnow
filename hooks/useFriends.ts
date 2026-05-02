@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { qk } from '@/lib/queryKeys';
 import type { User } from '@/types/database';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -51,7 +52,7 @@ export async function resolveInviteCode(code: string): Promise<User | null> {
  */
 export function useFriends(userId: string | null) {
   return useQuery<User[]>({
-    queryKey: ['friends', userId],
+    queryKey: qk.friends.list(userId),
     queryFn: async () => {
       if (!userId) return [];
 
@@ -77,7 +78,6 @@ export function useFriends(userId: string | null) {
       return (users ?? []) as User[];
     },
     enabled: !!userId,
-    staleTime: 30_000,
   });
 }
 
@@ -86,7 +86,7 @@ export function useFriends(userId: string | null) {
 /** Quick boolean check — used in the join screen to detect duplicates. */
 export function useAreFriends(userId: string | null, otherId: string | null) {
   return useQuery<boolean>({
-    queryKey: ['areFriends', userId, otherId],
+    queryKey: qk.friends.pair(userId, otherId),
     queryFn: async () => {
       if (!userId || !otherId) return false;
       const [uid1, uid2] = canonicalPair(userId, otherId);
@@ -156,7 +156,7 @@ export function useAddFriend() {
     },
 
     onSuccess: (_data, vars) => {
-      qc.invalidateQueries({ queryKey: ['friends', vars.currentUserId] });
+      qc.invalidateQueries({ queryKey: qk.friends.list(vars.currentUserId) });
     },
   });
 }
@@ -177,7 +177,7 @@ export function useRemoveFriend() {
       if (error) throw error;
     },
     onSuccess: (_data, vars) => {
-      qc.invalidateQueries({ queryKey: ['friends', vars.currentUserId] });
+      qc.invalidateQueries({ queryKey: qk.friends.list(vars.currentUserId) });
     },
   });
 }

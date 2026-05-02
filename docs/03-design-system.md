@@ -33,6 +33,7 @@ It should NOT feel:
 | Text Muted | `#4A4A4A` | Placeholders, disabled |
 | Danger | `#FF5959` | Amounts you owe, debt states |
 | Danger Dim | `rgba(255,89,89,0.10)` | Danger card backgrounds |
+| Danger Border | `rgba(255,89,89,0.18)` | Danger card borders |
 
 ### Semantic Color Usage
 - **Green/Accent (`#00D49A`)** → money you are owed, positive actions, primary CTAs
@@ -46,30 +47,41 @@ It should NOT feel:
 ## Typography
 
 ### Font
-| Role | Font | Weight | Usage |
-|------|------|--------|-------|
-| Everything | Plus Jakarta Sans | 400–800 | All text — display, numbers, body, labels |
+| Role | Font | Weights Used |
+|------|------|-------------|
+| Everything | **Plus Jakarta Sans** | 400, 500, 600, 700, 800 |
 
-Single font stack. No pairing needed. Plus Jakarta Sans handles all weights cleanly without visual noise.
+Single font stack. All display numbers, titles, body text, labels, and CTAs use Plus Jakarta Sans at different weights. The `fonts` constant in `constants/typography.ts` maps legacy alias names to this font:
+
+```ts
+export const fonts = {
+  syne:           'PlusJakartaSans_800ExtraBold',    // display, numbers, titles
+  bold:           'PlusJakartaSans_700Bold',          // section labels (bold)
+  dmSansSemiBold: 'PlusJakartaSans_600SemiBold',     // row titles, chips
+  dmSansMedium:   'PlusJakartaSans_500Medium',        // secondary body
+  dmSans:         'PlusJakartaSans_400Regular',       // metadata, dates
+};
+```
+
+**Note:** Alias names (`fonts.syne`, `fonts.dmSans`) are legacy from an earlier design. They map to Plus Jakarta Sans weights, not the literal fonts Syne or DM Sans.
 
 ### Type Scale
-| Element | Size | Weight | Font |
-|---------|------|--------|------|
-| Screen title | 24–26px | 800 | Plus Jakarta Sans |
-| Balance amount | 40–44px | 800 | Plus Jakarta Sans |
-| Large input | 52–60px | 800 | Plus Jakarta Sans |
-| Section label | 10px | 700 | Plus Jakarta Sans, uppercase, 1px tracking |
-| Body / row title | 13–14px | 600 | Plus Jakarta Sans |
-| Metadata / date | 11px | 400 | Plus Jakarta Sans |
-| Chip label | 12–13px | 500–600 | Plus Jakarta Sans |
-| CTA button | 15–16px | 700 | Plus Jakarta Sans |
+| Element | Size | Weight | Alias |
+|---------|------|--------|-------|
+| Screen title | 22–26px | 800 | `fonts.syne` |
+| Balance amount | 40–48px | 800 | `fonts.syne` |
+| Large input | 52–60px | 800 | `fonts.syne` |
+| Section label | 10px | 700 | `fonts.dmSansSemiBold`, uppercase, 1px tracking |
+| Body / row title | 13–14px | 600 | `fonts.dmSansSemiBold` |
+| Metadata / date | 11–12px | 400 | `fonts.dmSans` |
+| Chip label | 12–13px | 500–600 | `fonts.dmSansSemiBold` |
+| CTA button | 15px | 800 | `fonts.syne` |
 
 ### Rules
 - Numbers use weight 800 for impact — they're the hero of every screen
 - Never use less than 10px font size
-- Section labels: always uppercase, letter-spacing 0.8–1px, muted color
-- Balance amounts: letter-spacing -1.5px for large figures (tighter = more premium)
-- Avoid Syne — does not match the clarity-first philosophy of SplitNow
+- Section labels: always uppercase, letter-spacing 1px, muted color (`colors.text2`)
+- Balance amounts: letter-spacing -2px for large figures (tighter = more premium)
 
 ---
 
@@ -77,17 +89,17 @@ Single font stack. No pairing needed. Plus Jakarta Sans handles all weights clea
 
 ### Cards
 ```
-Border radius: 20–26px
-Background: #141414
+Border radius: 22px
+Background: #161616
 Border: 1px solid rgba(255,255,255,0.07)
-Padding: 16–22px
+Padding: 18px
 ```
 
 ### Chips (Category / People)
 ```
 Border radius: 20px (pill) for people, 12–14px for category
 Height: minimum 36px
-Padding: 6–10px vertical, 12–16px horizontal
+Padding: 7px vertical, 13px horizontal
 Default: bg #1C1C1C, border rgba(255,255,255,0.11)
 Selected: bg rgba(0,212,154,0.10), border rgba(0,212,154,0.22), text #00D49A
 Transition: all 0.12s ease
@@ -96,13 +108,22 @@ Active state: scale(0.95)
 
 ### Primary CTA Button
 ```
-Border radius: 16–18px
-Height: 52–56px
+Border radius: 16px
+Height: 52px
 Background: #00D49A
 Color: #000000
-Font: Plus Jakarta Sans 700, 15–16px
+Font: Plus Jakarta Sans 800, 15px
 Box shadow: 0 6px 24px rgba(0,212,154,0.28)
 Active: scale(0.97), reduced shadow
+```
+
+### Back Button (Stack Screens)
+```
+Size: 36×36px
+Border radius: 12px
+Background: #1C1C1C (cardElevated)
+Border: 1px solid rgba(255,255,255,0.07)
+Icon: Ionicons chevron-back, 20px, colors.text
 ```
 
 ### Input Fields (Amount)
@@ -116,13 +137,26 @@ Focus: border-color #00D49A
 
 ### Avatar / Initials
 ```
-Size: 38–44px
+Size: 38–44px (list rows), 58px (account screen)
 Border radius: 50%
-Each person has a consistent color:
-  - Person 1: rgba(0,212,154,0.1) bg / #00D49A text
-  - Person 2: rgba(91,159,255,0.1) bg / #5B9FFF text
-  - Person 3: rgba(168,124,255,0.1) bg / #A87CFF text
-  - Person 4: rgba(255,154,60,0.1) bg / #FF9A3C text
+Each person has a consistent color slot:
+  Green:  bg rgba(0,212,154,0.10)  / text #00D49A
+  Blue:   bg rgba(91,159,255,0.10) / text #5B9FFF
+  Purple: bg rgba(168,124,255,0.10)/ text #A87CFF
+  Orange: bg rgba(255,154,60,0.10) / text #FF9A3C
+  Red:    bg rgba(255,89,89,0.10)  / text #FF5959
+Avatar color is stored on the user record (avatar_color field).
+```
+
+### Settle Button
+```
+Background: rgba(0,212,154,0.10)
+Border: 1px solid rgba(0,212,154,0.22)
+Border radius: 10px
+Padding: 5px vertical, 12px horizontal
+Min height: 28px
+Text: Plus Jakarta Sans 600, 11px, #00D49A
+Label: "Settle"
 ```
 
 ### Tab Bar
@@ -149,8 +183,9 @@ Active: accent color label + active indicator pip
 |-------------|-----------|
 | Chip tap | scale(0.95) on :active, 120ms |
 | CTA tap | scale(0.97) + shadow reduction, 120ms |
+| Settle All tap | withSequence: scale 0.97 → 1, 100ms + 120ms |
 | Expense added | Toast slides up from bottom, 200ms |
-| Screen transition | Opacity fade, 180ms |
+| Screen transition | slide_from_right (all stack screens), fade (tab switches) |
 | Bar chart load | Width transition, 800ms cubic-bezier(0.34,1.56,0.64,1) |
 | Quick add dot | Pulse/blink animation, 2.2s infinite |
 

@@ -10,7 +10,7 @@ create extension if not exists "pgcrypto";
 -- ─── Users ────────────────────────────────────────────────────────────────────
 create table if not exists public.users (
   id          uuid        primary key default gen_random_uuid(),
-  name        text        not null,
+  name        text,                  -- nullable: set during profile-setup; auth trigger inserts NULL
   phone       text        unique,
   upi_id      text,
   avatar_color text       default 'green',

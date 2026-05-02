@@ -8,17 +8,16 @@ Always read these before making any design, UX, or feature decision:
 | `@docs/01-product-vision.md` | Why SplitNow exists, target users, core philosophy |
 | `@docs/02-ux-principles.md` | The 5 UX laws, interaction patterns, screen-by-screen intent |
 | `@docs/03-design-system.md` | Colors, typography, component specs, motion rules |
-| `@docs/04-features-and-data.md` | Full feature map, data model, UPI deeplink format |
+| `@docs/04-features-and-data.md` | Full feature map, data model, DB schema, navigation structure |
 | `@docs/05-prompt-guide.md` | Prompt templates for design tools (ignore for coding) |
 | `@docs/06-microcopy.md` | Exact copy strings, labels, toast messages, number formatting |
-| `@docs/splitnow_app_prototype.html` | **PRIMARY UI reference** — dark theme, Syne+DM Sans, #00D49A accent. Matches design system exactly. Start here. |
-| `@docs/SplitNow.html` | **ALT UI reference** — different visual direction, lime #bdf41a accent. Use only when switching themes later. |
+| `@docs/SplitNow.html` | **PRIMARY UI reference** — all screens including stack screens. Plus Jakarta Sans, #00D49A accent. Start here for any UI work. |
 
 **How to use in Claude Code session:**
 ```
-/add docs/03-design-system.md       ← when building any UI component
-/add docs/06-microcopy.md           ← when writing any label or copy
-/add docs/splitnow_app_prototype.html ← when replicating a specific screen
+/add docs/03-design-system.md   ← when building any UI component
+/add docs/06-microcopy.md       ← when writing any label or copy
+/add docs/SplitNow.html         ← when replicating a specific screen
 ```
 
 Or @-mention inline: *"Build the Settle screen following @docs/03-design-system.md and @docs/06-microcopy.md"*
@@ -32,30 +31,56 @@ An India-first expense splitting app for roommates and friend groups.
 Users should feel like they are **confirming** an expense, not **entering** one.
 
 ## Tech Stack
-- React Native (Expo managed workflow)
-- expo-router (file-based navigation, 4 tabs)
-- react-native-reanimated (animations)
-- expo-font (Syne + DM Sans from Google Fonts)
+- React Native (Expo managed workflow, ~SDK 54)
+- expo-router v3 (file-based navigation, 5 tabs + stack screens)
+- Supabase (PostgreSQL backend, phone OTP auth)
+- TanStack React Query v5 (data fetching and caching)
+- react-native-reanimated v3 (animations)
+- expo-font (Plus Jakarta Sans — all weights 400–800)
 - TypeScript
 
 ## Project Structure
 ```
 app/
+  (auth)/
+    phone.tsx          ← Phone number entry
+    otp.tsx            ← OTP verification
+    profile.tsx        ← Profile setup (new users)
   (tabs)/
-    index.tsx         ← Home + Quick Add Strip
-    add.tsx           ← Full Add Expense screen
-    settle.tsx        ← Settle Up screen
-    insights.tsx      ← Insights screen
+    index.tsx          ← Home: net balance + Quick Add + recent activity
+    add.tsx            ← Full Add Expense screen
+    settle.tsx         ← Settle Up screen
+    insights.tsx       ← Insights screen
+    friends.tsx        ← Friends list + add via invite code
+  account.tsx          ← Account/profile hub (stack, slide_from_right)
+  profile.tsx          ← Edit profile: name, avatar, UPI ID (stack)
+  expenses.tsx         ← All expenses list (stack)
+  expense/
+    [id].tsx           ← Expense detail + comments (stack)
+    edit/[id].tsx      ← Expense edit (stack)
+  join/[code].tsx      ← Join via invite code (modal)
 components/
-  QuickAddStrip.tsx
   BalanceCard.tsx
-  PersonChip.tsx
-  CategoryChip.tsx
+  ActivityRow.tsx
   ToastNotification.tsx
 constants/
   colors.ts
-  typography.ts
+  typography.ts        ← fonts.syne = PlusJakartaSans_800, fonts.dmSans = 400, etc.
   sampleData.ts
+store/
+  useUserStore.ts
+  useGroupStore.ts
+hooks/
+  useAuth.ts
+  useExpenses.ts
+  useBalances.ts
+  useMembers.ts
+  useFriends.ts
+  useSettlements.ts
+lib/
+  queryClient.ts
+  queryKeys.ts
+  auth.ts
 ```
 
 ---
@@ -85,19 +110,22 @@ const colors = {
 ```
 
 ### Typography
-- **Display / Numbers:** Syne, weight 800 — screen titles, balance amounts, CTAs
-- **Body / Labels:** DM Sans, weight 400–600 — all other text
+- **Single font:** Plus Jakarta Sans across all weights
+- Font aliases in `constants/typography.ts` use legacy names but all point to Plus Jakarta Sans:
+  - `fonts.syne` = PlusJakartaSans_800ExtraBold (display, numbers, CTAs)
+  - `fonts.dmSansSemiBold` = PlusJakartaSans_600SemiBold (row titles, chips)
+  - `fonts.dmSans` = PlusJakartaSans_400Regular (metadata, dates)
 
-| Element | Size | Weight | Font |
+| Element | Size | Weight | Alias |
 |---|---|---|---|
-| Screen title | 24px | 800 | Syne |
-| Balance amount | 42px | 800 | Syne |
-| Large input | 52px | 800 | Syne |
-| Section label | 10px | 700 | DM Sans, UPPERCASE, letterSpacing 1 |
-| Row title | 13px | 600 | DM Sans |
-| Metadata | 11px | 400 | DM Sans |
-| Chip label | 12px | 600 | DM Sans |
-| CTA button | 15px | 800 | Syne |
+| Screen title | 22px | 800 | `fonts.syne` |
+| Balance amount | 42px | 800 | `fonts.syne` |
+| Large input | 52px | 800 | `fonts.syne` |
+| Section label | 10px | 700 | `fonts.dmSansSemiBold`, UPPERCASE, letterSpacing 1 |
+| Row title | 13px | 600 | `fonts.dmSansSemiBold` |
+| Metadata | 11px | 400 | `fonts.dmSans` |
+| Chip label | 12px | 600 | `fonts.dmSansSemiBold` |
+| CTA button | 15px | 800 | `fonts.syne` |
 
 ### Component Specs
 
@@ -246,17 +274,18 @@ const categories = [
 - Balance card label: `NET BALANCE`
 - Quick Add section: `QUICK ADD` + pulsing dot
 - Quick Add hint: `Last: 🍛 Food`
-- Pay button: `Pay UPI`
-- Settle All CTA: `⚡ Settle All · Pay ₹1,540`
-- Individual settle: `UPI →`
+- Settle button (balance row): `Settle`
+- Settle All CTA: `⚡ Settle All · ₹1,540`
+- Individual settle (settle screen): `Settle`
 - Split calculator: `Each pays ₹180 (3 people)`
 - Add screen title: `Add Expense`
 - Add CTA: `Add Expense →`
 
 ### Toast Messages
 - Quick add success: `✓ ₹540 added!`
-- Pay tap: `Opening GPay for Raj…`
-- Settle all: `Opening UPI for all settlements…`
+- Individual settle: `Settled with [Name] ✓`
+- Settle all: `All settlements recorded ✓`
+- Home balance row settle: `Marked as paid to [Name] ✓`
 
 ### Number Formatting
 - Always use ₹ (never $, never Rs)
@@ -267,13 +296,12 @@ const categories = [
 
 ---
 
-## Payment — UPI Deeplink Format
+## Payment — UPI Settlement
+UPI deeplink settlement is implemented but **disabled** (code commented out). Settlements are recorded in the DB manually. Re-enable by uncommenting UPI code in `settle.tsx`, `index.tsx`, and `BalanceCard.tsx`.
+
+UPI deeplink format (for when re-enabled):
 ```
 upi://pay?pa={vpa}&pn={name}&am={amount}&cu=INR
-
-Examples:
-upi://pay?pa=raj@okaxis&pn=Raj&am=640&cu=INR
-upi://pay?pa=arjun@ybl&pn=Arjun&am=900&cu=INR
 ```
 
 ---
@@ -285,15 +313,32 @@ upi://pay?pa=arjun@ybl&pn=Arjun&am=900&cu=INR
 - ❌ Mandatory description/title field in default flow
 - ❌ Empty states with no defaults (always pre-fill)
 - ❌ Cards as currency ($ sign anywhere)
-- ❌ "Transfer" or "Transaction" language — use "Pay UPI"
+- ❌ "Transfer" or "Transaction" language — use "Settle"
+- ❌ Custom modal/overlay for navigation — use standard stack screens
 
 ---
 
 ## Screen Summary
 
+### Tab Screens
 | Screen | File | Purpose |
 |---|---|---|
 | Home | `app/(tabs)/index.tsx` | Balance overview + Quick Add Strip (hero) |
 | Add | `app/(tabs)/add.tsx` | Full expense entry for edge cases |
-| Settle | `app/(tabs)/settle.tsx` | Pay who you owe via UPI |
+| Settle | `app/(tabs)/settle.tsx` | Record settlements, view balances |
 | Insights | `app/(tabs)/insights.tsx` | Spending patterns, category breakdown |
+| Friends | `app/(tabs)/friends.tsx` | Friends list, add via invite code |
+
+### Stack Screens (all `slide_from_right`)
+| Screen | File | Purpose |
+|---|---|---|
+| Account | `app/account.tsx` | Profile hub: edit, groups, invite, sign out |
+| Profile edit | `app/profile.tsx` | Edit name, avatar colour, UPI ID |
+| Expenses list | `app/expenses.tsx` | Full expense history |
+| Expense detail | `app/expense/[id].tsx` | Detail view + comments |
+| Expense edit | `app/expense/edit/[id].tsx` | Edit existing expense |
+
+### Modal Screen
+| Screen | File | Purpose |
+|---|---|---|
+| Join group | `app/join/[code].tsx` | Process invite code, add friendship |

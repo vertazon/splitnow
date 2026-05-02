@@ -1,6 +1,7 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { qk } from '@/lib/queryKeys';
 import type { Expense, ExpenseSplit, ExpenseComment } from '@/types/database';
 
 // Joined shape returned by useExpenses — splits + comments live alongside the row
@@ -10,9 +11,6 @@ export interface ExpenseWithSplits extends Expense {
 }
 
 // ─── Read ────────────────────────────────────────────────────────────────────
-
-/** Shared query key — use this whenever you need to read from the expenses cache. */
-export const expensesQueryKey = (groupId: string) => ['expenses', groupId] as const;
 
 /** Shared query fn — fetches expenses with splits + comments for a group. */
 export async function fetchExpenses(groupId: string): Promise<ExpenseWithSplits[]> {
@@ -25,23 +23,28 @@ export async function fetchExpenses(groupId: string): Promise<ExpenseWithSplits[
   return (data ?? []) as ExpenseWithSplits[];
 }
 
-export function useExpenses(groupId: string) {
+export function useExpenses(groupId: string | null | undefined) {
   const qc = useQueryClient();
+  const subscribedGroupRef = useRef<string | null>(null);
 
   const query = useQuery<ExpenseWithSplits[]>({
-    queryKey: expensesQueryKey(groupId),
-    queryFn: () => fetchExpenses(groupId),
+    queryKey: qk.expenses.list(groupId),
+    queryFn: () => fetchExpenses(groupId as string),
     enabled: !!groupId,
   });
 
   // Realtime: invalidate on any change to expenses, splits, or comments.
-  // We purge any stale channel with the same name before subscribing — Supabase's
-  // channel() returns the *same* object if the name is already registered, and
-  // calling .on() on an already-subscribed channel throws an error.
+  // Guard against StrictMode double-invokes and rapid groupId changes by
+  // tracking the group we last subscribed to in a ref.
   useEffect(() => {
     if (!groupId) return;
+    const gid = groupId; // narrowed to string inside this block
+    if (subscribedGroupRef.current === gid) return;
+    subscribedGroupRef.current = gid;
 
-    const channelName = `expenses:${groupId}`;
+    const channelName = `expenses:${gid}`;
+    // Purge any stale channel with the same name — channel() returns the same
+    // object if already registered, and .on() on a subscribed channel throws.
     supabase.getChannels()
       .filter(ch => ch.topic === `realtime:${channelName}`)
       .forEach(ch => supabase.removeChannel(ch));
@@ -49,23 +52,26 @@ export function useExpenses(groupId: string) {
     const channel = supabase
       .channel(channelName)
       .on('postgres_changes',
-        { event: '*', schema: 'public', table: 'expenses', filter: `group_id=eq.${groupId}` },
-        () => qc.invalidateQueries({ queryKey: ['expenses', groupId] })
+        { event: '*', schema: 'public', table: 'expenses', filter: `group_id=eq.${gid}` },
+        () => qc.invalidateQueries({ queryKey: qk.expenses.list(gid) })
       )
       .on('postgres_changes',
         { event: '*', schema: 'public', table: 'expense_splits' },
         () => {
-          qc.invalidateQueries({ queryKey: ['expenses', groupId] });
-          qc.invalidateQueries({ queryKey: ['balances', groupId] });
+          qc.invalidateQueries({ queryKey: qk.expenses.list(gid) });
+          qc.invalidateQueries({ queryKey: qk.balances.all });
         }
       )
       .on('postgres_changes',
         { event: '*', schema: 'public', table: 'expense_comments' },
-        () => qc.invalidateQueries({ queryKey: ['expenses', groupId] })
+        () => qc.invalidateQueries({ queryKey: qk.expenses.list(gid) })
       )
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      subscribedGroupRef.current = null;
+      supabase.removeChannel(channel);
+    };
   }, [groupId, qc]);
 
   return query;
@@ -74,16 +80,18 @@ export function useExpenses(groupId: string) {
 // Single expense with splits + comments (for the detail screen)
 export function useExpense(expenseId: string | undefined) {
   return useQuery<ExpenseWithSplits | null>({
-    queryKey: ['expense', expenseId],
+    queryKey: qk.expenses.detail(expenseId),
     queryFn: async () => {
       if (!expenseId) return null;
+      // .maybeSingle() returns null (not an error) when 0 rows match —
+      // handles deleted expenses gracefully. .single() throws PGRST116.
       const { data, error } = await supabase
         .from('expenses')
         .select('*, splits:expense_splits(*), comments:expense_comments(*)')
         .eq('id', expenseId)
-        .single();
+        .maybeSingle();
       if (error) throw error;
-      return data as ExpenseWithSplits;
+      return data as ExpenseWithSplits | null;
     },
     enabled: !!expenseId,
   });
@@ -143,9 +151,44 @@ export function useAddExpense() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: insertExpenseWithSplits,
-    onSuccess: (_data, vars) => {
-      qc.invalidateQueries({ queryKey: ['expenses', vars.groupId] });
-      qc.invalidateQueries({ queryKey: ['balances', vars.groupId] });
+    // Optimistic insert: snapshot, prepend a fake row, roll back on error.
+    onMutate: async (vars) => {
+      const key = qk.expenses.list(vars.groupId);
+      await qc.cancelQueries({ queryKey: key });
+      const previous = qc.getQueryData<ExpenseWithSplits[]>(key);
+
+      const splitCount = Math.max(1, vars.splitWith.length);
+      const perHead = parseFloat((vars.amount / splitCount).toFixed(2));
+      const tempId = `optimistic-${Date.now()}`;
+      const optimistic: ExpenseWithSplits = {
+        id: tempId,
+        group_id: vars.groupId,
+        title: vars.title,
+        amount: vars.amount,
+        category: vars.category,
+        paid_by: vars.paidBy,
+        added_by: vars.addedBy,
+        note: vars.note ?? null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        splits: vars.splitWith.map((uid) => ({
+          id: `${tempId}-${uid}`,
+          expense_id: tempId,
+          user_id: uid,
+          amount_owed: perHead,
+        })) as any,
+        comments: [],
+      } as any;
+
+      qc.setQueryData<ExpenseWithSplits[]>(key, (old) => [optimistic, ...(old ?? [])]);
+      return { previous, key };
+    },
+    onError: (_err, _vars, ctx) => {
+      if (ctx?.previous) qc.setQueryData(ctx.key, ctx.previous);
+    },
+    onSettled: (_data, _err, vars) => {
+      qc.invalidateQueries({ queryKey: qk.expenses.list(vars.groupId) });
+      qc.invalidateQueries({ queryKey: qk.balances.all });
     },
   });
 }
@@ -198,9 +241,9 @@ export function useUpdateExpense() {
       if (insErr) throw insErr;
     },
     onSuccess: (_d, vars) => {
-      qc.invalidateQueries({ queryKey: ['expenses', vars.groupId] });
-      qc.invalidateQueries({ queryKey: ['expense', vars.expenseId] });
-      qc.invalidateQueries({ queryKey: ['balances', vars.groupId] });
+      qc.invalidateQueries({ queryKey: qk.expenses.list(vars.groupId) });
+      qc.invalidateQueries({ queryKey: qk.expenses.detail(vars.expenseId) });
+      qc.invalidateQueries({ queryKey: qk.balances.all });
     },
   });
 }
@@ -218,9 +261,22 @@ export function useDeleteExpense() {
         .eq('id', input.expenseId);
       if (error) throw error;
     },
-    onSuccess: (_d, vars) => {
-      qc.invalidateQueries({ queryKey: ['expenses', vars.groupId] });
-      qc.invalidateQueries({ queryKey: ['balances', vars.groupId] });
+    // Optimistic remove from the list — keeps the UI snappy on slow networks.
+    onMutate: async (vars) => {
+      const key = qk.expenses.list(vars.groupId);
+      await qc.cancelQueries({ queryKey: key });
+      const previous = qc.getQueryData<ExpenseWithSplits[]>(key);
+      qc.setQueryData<ExpenseWithSplits[]>(key, (old) =>
+        (old ?? []).filter(e => e.id !== vars.expenseId)
+      );
+      return { previous, key };
+    },
+    onError: (_err, _vars, ctx) => {
+      if (ctx?.previous) qc.setQueryData(ctx.key, ctx.previous);
+    },
+    onSettled: (_d, _err, vars) => {
+      qc.invalidateQueries({ queryKey: qk.expenses.list(vars.groupId) });
+      qc.invalidateQueries({ queryKey: qk.balances.all });
     },
   });
 }
@@ -246,8 +302,8 @@ export function useAddComment() {
       if (error) throw error;
     },
     onSuccess: (_d, vars) => {
-      qc.invalidateQueries({ queryKey: ['expense', vars.expenseId] });
-      qc.invalidateQueries({ queryKey: ['expenses', vars.groupId] });
+      qc.invalidateQueries({ queryKey: qk.expenses.detail(vars.expenseId) });
+      qc.invalidateQueries({ queryKey: qk.expenses.list(vars.groupId) });
     },
   });
 }

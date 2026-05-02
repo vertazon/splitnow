@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useUserStore } from '@/store/useUserStore';
 import { DEV_USER_ID } from '@/lib/auth';
+import { qk } from '@/lib/queryKeys';
 import type { Balance, User, AvatarColor } from '@/types/database';
 
 interface RawSplitRow {
@@ -27,26 +28,27 @@ interface RawSettlementRow {
  * Balance = SUM(expense_splits) − SUM(settlements)
  * No settled flag on splits — settlements are the source of truth for payments.
  */
-export function useBalances(groupId: string) {
+export function useBalances(groupId: string | null | undefined) {
   const currentUserId = useUserStore(s => s.currentUserId) ?? DEV_USER_ID;
 
   return useQuery<Balance[]>({
-    queryKey: ['balances', groupId, currentUserId],
+    queryKey: qk.balances.list(groupId, currentUserId),
     queryFn: async () => {
+      const gid = groupId as string; // guarded by enabled: !!groupId
       const [splitsRes, settlementsRes, membersRes] = await Promise.all([
         supabase
           .from('expense_splits')
           .select('amount_owed, user_id, expense:expenses!inner(paid_by, group_id)')
-          .eq('expense.group_id', groupId),
+          .eq('expense.group_id', gid),
         supabase
           .from('settlements')
           .select('from_user, to_user, amount')
-          .eq('group_id', groupId)
+          .eq('group_id', gid)
           .eq('status', 'completed'),
         supabase
           .from('group_members')
           .select('user:users(*)')
-          .eq('group_id', groupId),
+          .eq('group_id', gid),
       ]);
 
       if (splitsRes.error) throw splitsRes.error;

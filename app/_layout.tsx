@@ -133,10 +133,11 @@ export default function RootLayout() {
       <Stack screenOptions={{ headerShown: false, animation: 'fade' }}>
         <Stack.Screen name="(auth)"            options={{ animation: 'none' }} />
         <Stack.Screen name="(tabs)"            options={{ animation: 'none' }} />
-        <Stack.Screen name="profile"           options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
-        <Stack.Screen name="expenses" />
-        <Stack.Screen name="expense/[id]" />
-        <Stack.Screen name="expense/edit/[id]" />
+        <Stack.Screen name="account"           options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="profile"           options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="expenses"          options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="expense/[id]"      options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="expense/edit/[id]" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="join/[code]"       options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
       </Stack>
     </QueryClientProvider>

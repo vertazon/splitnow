@@ -93,7 +93,13 @@ async function fetchOrCreateUserGroup(userId: string, userName: string): Promise
  * Resolves the session on startup and keeps the store updated on sign-in / sign-out.
  */
 export function useAuthInit() {
-  const { setCurrentUser, setCurrentUserId, setLoading } = useUserStore();
+  // Subscribe per-action via individual selectors. Destructuring the whole
+  // store would re-subscribe to every state change and rerun this effect's
+  // cleanup unnecessarily; action references are stable so selecting them
+  // individually is safe.
+  const setCurrentUser   = useUserStore(s => s.setCurrentUser);
+  const setCurrentUserId = useUserStore(s => s.setCurrentUserId);
+  const setLoading       = useUserStore(s => s.setLoading);
 
   useEffect(() => {
     // 1. Read whatever is already in AsyncStorage (instant, no network round-trip)

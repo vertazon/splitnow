@@ -136,7 +136,7 @@ export default function ExpenseDetailScreen() {
       <SafeAreaView style={styles.safe} edges={['top']}>
         <View style={styles.notFound}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-            <Text style={styles.backText}>← Back</Text>
+            <Ionicons name="chevron-back" size={20} color={colors.text} />
           </TouchableOpacity>
           <Text style={styles.notFoundText}>Expense not found</Text>
         </View>
@@ -225,8 +225,8 @@ export default function ExpenseDetailScreen() {
       >
         {/* Fixed header */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-            <Text style={styles.backText}>← Back</Text>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Ionicons name="chevron-back" size={20} color={colors.text} />
           </TouchableOpacity>
           <View style={styles.headerActions}>
             <TouchableOpacity
@@ -485,10 +485,11 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
-  backBtn: { paddingVertical: 6, paddingRight: 12 },
-  backText: {
-    fontFamily: fonts.dmSansSemiBold, fontSize: 14,
-    fontWeight: '600', color: colors.accent,
+  backBtn: {
+    width: 36, height: 36, borderRadius: 12,
+    backgroundColor: colors.cardElevated,
+    borderWidth: 1, borderColor: colors.border,
+    alignItems: 'center', justifyContent: 'center',
   },
   headerActions: { flexDirection: 'row', gap: 8 },
   actionBtn: {
