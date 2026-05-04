@@ -36,4 +36,10 @@ export const qk = {
     pair: (userId: string | null | undefined, otherId: string | null | undefined) =>
       ['areFriends', userId, otherId] as const,
   },
+  groups: {
+    all: ['groups'] as const,
+    list: (userId: string | null | undefined) => ['groups', userId] as const,
+    detail: (groupId: string | null | undefined) => ['group', groupId] as const,
+    members: (groupId: string | null | undefined) => ['groupMembers', groupId] as const,
+  },
 } as const;

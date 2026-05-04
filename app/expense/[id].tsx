@@ -111,7 +111,9 @@ export default function ExpenseDetailScreen() {
   const currentUserId = useUserStore(s => s.currentUserId) ?? DEV_USER_ID;
 
   const { data: expense, isLoading } = useExpense(id);
-  const { data: members = [] } = useMembers(groupId);
+  // Use the expense's own group_id so member names resolve correctly regardless
+  // of which group the user navigated from.
+  const { data: members = [] } = useMembers(expense?.group_id ?? groupId);
   const deleteExpense = useDeleteExpense();
   const addComment = useAddComment();
 

@@ -27,17 +27,32 @@ export interface User {
   razorpay_subscription_id: string | null;
 }
 
+export type GroupType = 'flat' | 'trip' | 'custom' | 'personal';
+export type GroupMemberRole = 'admin' | 'member';
+
 export interface Group {
-  id: string;
-  name: string;
-  created_by: string | null;
-  created_at: string;
+  id:           string;
+  name:         string;
+  created_by:   string | null;
+  cover_emoji:  string;
+  group_type:   GroupType;
+  archived_at:  string | null;
+  created_at:   string;
 }
 
 export interface GroupMember {
   group_id:  string;
   user_id:   string;
+  role:      GroupMemberRole;
   joined_at: string;
+  left_at:   string | null;
+}
+
+// Enriched group with computed fields
+export interface GroupWithStats extends Group {
+  member_count: number;
+  net_balance:  number;   // positive = owed to you, negative = you owe
+  members:      User[];
 }
 
 export type ExpenseType = 'group' | 'personal' | 'advance';
@@ -105,7 +120,7 @@ export interface Balance {
 
 // Insert payloads (everything DB-generated is optional)
 export type UserInsert       = Omit<User, 'id' | 'created_at'>                        & Partial<Pick<User, 'id' | 'created_at'>>;
-export type GroupInsert      = Omit<Group, 'id' | 'created_at'>                       & Partial<Pick<Group, 'id' | 'created_at'>>;
+export type GroupInsert      = Omit<Group, 'id' | 'created_at' | 'cover_emoji' | 'group_type' | 'archived_at'> & Partial<Pick<Group, 'id' | 'created_at' | 'cover_emoji' | 'group_type' | 'archived_at'>>;
 export type ExpenseInsert    = Omit<Expense, 'id' | 'created_at' | 'updated_at' | 'type'> & Partial<Pick<Expense, 'id' | 'created_at' | 'updated_at' | 'type'>>;
 export type SplitInsert      = Omit<ExpenseSplit, 'id'>                               & Partial<Pick<ExpenseSplit, 'id'>>;
 export type CommentInsert    = Omit<ExpenseComment, 'id' | 'created_at' | 'parent_id'> & Partial<Pick<ExpenseComment, 'id' | 'created_at' | 'parent_id'>>;
@@ -127,7 +142,7 @@ export interface Database {
     Tables: {
       users:             Tbl<User,           UserInsert>;
       groups:            Tbl<Group,          GroupInsert>;
-      group_members:     Tbl<GroupMember,    GroupMember>;
+      group_members:     Tbl<GroupMember,    Omit<GroupMember, 'role' | 'left_at'> & Partial<Pick<GroupMember, 'role' | 'left_at'>>>;
       expenses:          Tbl<Expense,        ExpenseInsert>;
       expense_splits:    Tbl<ExpenseSplit,   SplitInsert>;
       expense_comments:  Tbl<ExpenseComment, CommentInsert>;

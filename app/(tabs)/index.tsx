@@ -24,6 +24,7 @@ import { useGroupStore } from '@/store/useGroupStore';
 import { useExpenses, type ExpenseWithSplits } from '@/hooks/useExpenses';
 import { useBalances, useNetBalance } from '@/hooks/useBalances';
 import { useMembers } from '@/hooks/useMembers';
+import { useGroups } from '@/hooks/useGroups';
 import { BalanceRow } from '@/components/BalanceCard';
 import { ToastNotification } from '@/components/ToastNotification';
 import { ActivityRow } from '@/components/ActivityRow';
@@ -35,11 +36,16 @@ import { qk } from '@/lib/queryKeys';
 export default function HomeScreen() {
   const router = useRouter();
   const groupId = useGroupStore(s => s.currentGroupId);
+  const setCurrentGroupId = useGroupStore(s => s.setCurrentGroupId);
+  const clearGroup = useGroupStore(s => s.clearGroup);
   const currentUserId = useUserStore(s => s.currentUserId) ?? DEV_USER_ID;
+
+  const { data: groups = [] } = useGroups(currentUserId);
+  const activeGroups = groups.filter(g => !g.archived_at);
 
   const { data: expenses = [], isLoading: expLoading, error: expError } = useExpenses(groupId);
   const { data: balances = [], isLoading: balLoading } = useBalances(groupId);
-  const { net: netAmt } = useNetBalance(groupId);
+  const { net: netAmt } = useNetBalance(groupId ?? '');
   const { data: members = [] } = useMembers(groupId);
 
   const qc = useQueryClient();
@@ -77,6 +83,11 @@ export default function HomeScreen() {
   // Map for fast lookup inside ActivityRow + MiniAvatars
   const memberMap = new Map<string, MemberLite>(
     members.map(m => [m.id, { id: m.id, name: m.name ?? m.id, color: (m.avatar_color ?? 'green') as AvatarColor }])
+  );
+
+  // Map group_id → badge string for activity rows (shown when viewing "All" context)
+  const groupBadgeMap = new Map<string, string>(
+    activeGroups.map(g => [g.id, `${g.cover_emoji} ${g.name}`])
   );
 
   const isOwed = netAmt >= 0;
@@ -122,9 +133,58 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* Group context chip row — only shown when user has groups */}
+        {activeGroups.length > 0 && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.groupChipScroll}
+            contentContainerStyle={styles.groupChipContent}
+          >
+            <TouchableOpacity
+              style={[styles.groupChip, !groupId && styles.groupChipOn]}
+              onPress={clearGroup}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.groupChipText, !groupId && styles.groupChipTextOn]}>All</Text>
+            </TouchableOpacity>
+            {activeGroups.map(g => (
+              <TouchableOpacity
+                key={g.id}
+                style={[styles.groupChip, groupId === g.id && styles.groupChipOn]}
+                onPress={() => setCurrentGroupId(g.id)}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.groupChipText, groupId === g.id && styles.groupChipTextOn]}>
+                  {g.cover_emoji} {g.name}
+                </Text>
+              </TouchableOpacity>
+            ))}
+            <TouchableOpacity
+              style={[styles.groupChip, styles.groupChipAdd]}
+              onPress={() => router.push('/groups/create' as never)}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.groupChipAddText}>+ New</Text>
+            </TouchableOpacity>
+          </ScrollView>
+        )}
+
         {/* Net Balance Card */}
         <View style={[styles.card, isOwed ? styles.balanceCardAccent : styles.balanceCardDanger]}>
-          <Text style={styles.sectionLabel}>NET BALANCE</Text>
+          {groupId && activeGroups.find(g => g.id === groupId) ? (
+            <View style={styles.balanceLabelRow}>
+              <Text style={[styles.sectionLabel, { marginBottom: 0 }]}>NET BALANCE</Text>
+              <View style={styles.groupBadgeInline}>
+                <Text style={styles.groupBadgeInlineText}>
+                  {activeGroups.find(g => g.id === groupId)!.cover_emoji}{' '}
+                  {activeGroups.find(g => g.id === groupId)!.name}
+                </Text>
+              </View>
+            </View>
+          ) : (
+            <Text style={styles.sectionLabel}>NET BALANCE</Text>
+          )}
           {balLoading && balances.length === 0 ? (
             <ActivityIndicator color={colors.text2} style={{ marginVertical: 12 }} />
           ) : (
@@ -139,6 +199,15 @@ export default function HomeScreen() {
                     ? `from ${owesYouCount} ${owesYouCount === 1 ? 'person' : 'people'}`
                     : `to ${owedToCount} ${owedToCount === 1 ? 'person' : 'people'}`}
               </Text>
+              {!isOwed && balances.length > 0 && (
+                <TouchableOpacity
+                  style={styles.settleUpBtn}
+                  onPress={() => router.push('/(tabs)/settle' as never)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.settleUpBtnText}>⚡ Settle Up →</Text>
+                </TouchableOpacity>
+              )}
             </>
           )}
         </View>
@@ -189,6 +258,7 @@ export default function HomeScreen() {
                     memberMap={memberMap}
                     currentUserId={currentUserId}
                     onPress={() => router.push(`/expense/${exp.id}` as never)}
+                    groupBadge={!groupId ? groupBadgeMap.get(exp.group_id) : undefined}
                   />
                   {i < arr.length - 1 && <View style={styles.divider} />}
                 </View>
@@ -281,6 +351,20 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.text2,
   },
+  settleUpBtn: {
+    marginTop: 14,
+    backgroundColor: colors.danger,
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    alignSelf: 'flex-start',
+  },
+  settleUpBtnText: {
+    fontFamily: fonts.syne,
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#fff',
+  },
   section: { marginBottom: 16 },
   sectionHeader: {
     flexDirection: 'row',
@@ -315,4 +399,26 @@ const styles = StyleSheet.create({
     color: colors.danger,
     textAlign: 'center',
   },
+
+  // Group context chips
+  groupChipScroll: { marginBottom: 16, flexGrow: 0 },
+  groupChipContent: { gap: 8, paddingBottom: 2 },
+  groupChip: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20,
+    backgroundColor: colors.cardElevated, borderWidth: 1.5, borderColor: colors.borderEmphasis,
+  },
+  groupChipOn: { backgroundColor: colors.accentDim, borderColor: colors.accentMid },
+  groupChipText: { fontFamily: fonts.dmSansSemiBold, fontSize: 12, color: colors.text2 },
+  groupChipTextOn: { color: colors.accent },
+  groupChipAdd: { borderStyle: 'dashed' },
+  groupChipAddText: { fontFamily: fonts.dmSansSemiBold, fontSize: 12, color: colors.text3 },
+
+  // Balance label row (with group badge)
+  balanceLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
+  groupBadgeInline: {
+    backgroundColor: colors.cardElevated, borderWidth: 1, borderColor: colors.border,
+    borderRadius: 8, paddingHorizontal: 7, paddingVertical: 2,
+  },
+  groupBadgeInlineText: { fontFamily: fonts.dmSansSemiBold, fontSize: 10, color: colors.text3 },
 });

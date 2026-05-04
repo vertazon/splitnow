@@ -39,7 +39,7 @@ export default function EditExpenseScreen() {
   const groupId = useGroupStore(s => s.currentGroupId);
   const currentUserId = useUserStore(s => s.currentUserId) ?? DEV_USER_ID;
   const { data: expense, isLoading } = useExpense(id);
-  const { data: members = [] } = useMembers(groupId);
+  const { data: members = [] } = useMembers(expense?.group_id ?? groupId);
   const updateExpense = useUpdateExpense();
   const { width } = useWindowDimensions();
   const chipWidth = (width - 44 - 16) / 3;

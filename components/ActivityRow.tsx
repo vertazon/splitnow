@@ -1,4 +1,5 @@
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { colors, avatarColors } from '@/constants/colors';
 import { fonts } from '@/constants/typography';
 import { categories } from '@/constants/sampleData';
@@ -6,6 +7,7 @@ import { formatAmount } from '@/constants/amountUtils';
 import { formatActivityDate, initialsFromName } from '@/constants/dateFormat';
 import type { AvatarColor } from '@/types/database';
 import type { ExpenseWithSplits } from '@/hooks/useExpenses';
+import type { Settlement } from '@/types/database';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -112,11 +114,13 @@ export function ActivityRow({
   memberMap,
   currentUserId,
   onPress,
+  groupBadge,
 }: {
   exp: ExpenseWithSplits;
   memberMap: Map<string, MemberLite>;
   currentUserId: string;
   onPress: () => void;
+  groupBadge?: string;
 }) {
   const cat = categories.find(c => c.id === exp.category);
   const emoji = cat?.emoji ?? '📦';
@@ -143,7 +147,12 @@ export function ActivityRow({
 
           <View style={rowStyles.meta}>
             <Text style={rowStyles.date}>{dateStr}</Text>
-            {cat && <Text style={rowStyles.catLabel}> · {cat.label}</Text>}
+            {cat && !groupBadge && <Text style={rowStyles.catLabel}> · {cat.label}</Text>}
+            {groupBadge && (
+              <View style={rowStyles.groupBadge}>
+                <Text style={rowStyles.groupBadgeText}>{groupBadge}</Text>
+              </View>
+            )}
           </View>
 
           {!isPersonal && splitUserIds.length > 1 && (
@@ -173,6 +182,57 @@ export function ActivityRow({
     </TouchableOpacity>
   );
 }
+
+// ─── SettlementRow ────────────────────────────────────────────────────────────
+
+export function SettlementRow({
+  settlement,
+  memberMap,
+  currentUserId,
+}: {
+  settlement: Settlement;
+  memberMap: Map<string, MemberLite>;
+  currentUserId: string;
+}) {
+  const fromName = settlement.from_user === currentUserId
+    ? 'You'
+    : memberMap.get(settlement.from_user ?? '')?.name ?? 'Someone';
+  const toName = settlement.to_user === currentUserId
+    ? 'you'
+    : memberMap.get(settlement.to_user ?? '')?.name ?? 'someone';
+
+  const dateStr = formatActivityDate(settlement.settled_at);
+  const isCurrentUserSender = settlement.from_user === currentUserId;
+
+  return (
+    <View style={rowStyles.row}>
+      <View style={[rowStyles.iconBox, settlementStyles.iconBg]}>
+        <Ionicons name="checkmark-circle" size={20} color={colors.accent} />
+      </View>
+
+      <View style={rowStyles.info}>
+        <Text style={rowStyles.title} numberOfLines={1}>Settlement</Text>
+        <View style={rowStyles.meta}>
+          <Text style={rowStyles.date}>{dateStr}</Text>
+          <Text style={rowStyles.catLabel}> · {fromName} paid {toName}</Text>
+        </View>
+      </View>
+
+      <View style={rowStyles.right}>
+        <Text style={[rowStyles.netAmount, { color: isCurrentUserSender ? colors.danger : colors.accent }]}>
+          {isCurrentUserSender ? '−' : '+'}{formatAmount(settlement.amount)}
+        </Text>
+        <Text style={[rowStyles.netLabel, { color: isCurrentUserSender ? 'rgba(255,89,89,0.55)' : 'rgba(0,212,154,0.55)' }]}>
+          {isCurrentUserSender ? 'you paid' : 'received'}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+const settlementStyles = StyleSheet.create({
+  iconBg: { backgroundColor: 'rgba(0,212,154,0.10)' },
+});
 
 export const rowStyles = StyleSheet.create({
   row: {
@@ -223,4 +283,10 @@ export const rowStyles = StyleSheet.create({
   },
   netLabel: { fontFamily: fonts.dmSans, fontSize: 10, fontWeight: '400' },
   chevron: { fontSize: 18, color: colors.text3, flexShrink: 0, marginLeft: -4 },
+  groupBadge: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: colors.cardElevated, borderWidth: 1, borderColor: colors.border,
+    borderRadius: 8, paddingHorizontal: 7, paddingVertical: 2, marginLeft: 5,
+  },
+  groupBadgeText: { fontFamily: fonts.dmSansSemiBold, fontSize: 10, color: colors.text3 },
 });

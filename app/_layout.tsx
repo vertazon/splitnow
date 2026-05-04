@@ -139,6 +139,10 @@ export default function RootLayout() {
         <Stack.Screen name="expense/[id]"      options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="expense/edit/[id]" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="join/[code]"       options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+        <Stack.Screen name="groups/index"      options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="groups/[id]"       options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="groups/create"     options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+        <Stack.Screen name="groups/edit/[id]"  options={{ animation: 'slide_from_right' }} />
       </Stack>
     </QueryClientProvider>
   );

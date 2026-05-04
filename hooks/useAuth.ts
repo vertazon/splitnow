@@ -45,7 +45,7 @@ async function fetchProfile(userId: string): Promise<User | null> {
  * group they were added to via a split), prefer the group with the most
  * members — that's the active shared group where expenses actually live.
  */
-async function fetchOrCreateUserGroup(userId: string, userName: string): Promise<void> {
+async function fetchOrCreateUserGroup(userId: string, userName: string | null): Promise<void> {
   const { data: memberships } = await supabase
     .from('group_members')
     .select('group_id')
@@ -75,7 +75,7 @@ async function fetchOrCreateUserGroup(userId: string, userName: string): Promise
   // No group yet — create a default one for this user
   const { data: group, error } = await supabase
     .from('groups')
-    .insert({ name: `${userName}'s Group`, created_by: userId })
+    .insert({ name: 'Personal', group_type: 'personal', created_by: userId })
     .select('id')
     .single();
 
@@ -112,7 +112,9 @@ export function useAuthInit() {
         // breaking the profile-setup screen for brand-new users.
         if (profile) {
           setCurrentUser(profile);
-          await fetchOrCreateUserGroup(session.user.id, profile.name);
+          if (profile.name) {
+            await fetchOrCreateUserGroup(session.user.id, profile.name);
+          }
         }
       } else {
         clearSession();
@@ -132,7 +134,9 @@ export function useAuthInit() {
             // haven't completed profile setup yet — it would wipe currentUserId.
             if (profile) {
               setCurrentUser(profile);
-              await fetchOrCreateUserGroup(session.user.id, profile.name);
+              if (profile.name) {
+                await fetchOrCreateUserGroup(session.user.id, profile.name);
+              }
             }
           }
         } else {

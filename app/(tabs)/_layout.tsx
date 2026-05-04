@@ -44,18 +44,18 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="add"
+        name="groups"
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon emoji="➕" label="ADD" focused={focused} />
+            <TabIcon emoji="🗂️" label="GROUPS" focused={focused} />
           ),
         }}
       />
       <Tabs.Screen
-        name="settle"
+        name="add"
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon emoji="💸" label="SETTLE" focused={focused} />
+            <TabIcon emoji="➕" label="ADD" focused={focused} />
           ),
         }}
       />
@@ -75,6 +75,7 @@ export default function TabLayout() {
           ),
         }}
       />
+      <Tabs.Screen name="settle" options={{ href: null }} />
       <Tabs.Screen name="explore" options={{ href: null }} />
     </Tabs>
   );

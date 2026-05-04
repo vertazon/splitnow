@@ -11,6 +11,8 @@ import {
   // Linking, // UPI deeplinks — disabled until UPI settlement is re-enabled
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -30,6 +32,7 @@ import { qk } from '@/lib/queryKeys';
 import type { Balance } from '@/types/database';
 
 export default function SettleScreen() {
+  const router = useRouter();
   const groupId = useGroupStore(s => s.currentGroupId);
   const qc = useQueryClient();
   const [refreshing, setRefreshing] = useState(false);
@@ -94,6 +97,13 @@ export default function SettleScreen() {
   if (isLoading) {
     return (
       <SafeAreaView style={styles.safe} edges={['top']}>
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.backBtn} onPress={() => router.back()} activeOpacity={0.7}>
+            <Ionicons name="chevron-back" size={20} color={colors.text} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Settle Up</Text>
+          <View style={{ width: 36 }} />
+        </View>
         <View style={styles.loadingWrap}>
           <ActivityIndicator color={colors.accent} />
         </View>
@@ -103,6 +113,15 @@ export default function SettleScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()} activeOpacity={0.7}>
+          <Ionicons name="chevron-back" size={20} color={colors.text} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Settle Up</Text>
+        <View style={{ width: 36 }} />
+      </View>
+
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.content}
@@ -116,7 +135,6 @@ export default function SettleScreen() {
           />
         }
       >
-        <Text style={styles.title}>Settle Up</Text>
 
         {/* Total Owe Card */}
         <View style={[styles.card, owedBalances.length > 0 ? styles.totalCard : styles.totalCardSettled]}>
@@ -229,25 +247,35 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.bg,
   },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  backBtn: {
+    width: 36, height: 36, borderRadius: 12,
+    backgroundColor: colors.cardElevated, borderWidth: 1, borderColor: colors.border,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  headerTitle: {
+    flex: 1, textAlign: 'center',
+    fontFamily: fonts.syne, fontSize: 17, color: colors.text,
+  },
   scroll: {
     flex: 1,
   },
   content: {
     paddingHorizontal: 22,
     paddingTop: 20,
-    paddingBottom: Platform.OS === 'ios' ? 110 : 90,
+    paddingBottom: Platform.OS === 'ios' ? 40 : 32,
   },
   loadingWrap: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  title: {
-    fontFamily: fonts.syne,
-    fontSize: 22,
-    fontWeight: '800',
-    color: colors.text,
-    marginBottom: 20,
   },
   card: {
     backgroundColor: colors.card,

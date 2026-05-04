@@ -169,7 +169,7 @@ export default function AccountScreen() {
             icon="people-outline"
             label="Manage Groups"
             sub="Members & balances"
-            onPress={() => router.push('/profile')}
+            onPress={() => router.push('/groups' as never)}
           />
           <Divider />
           <MenuItem
