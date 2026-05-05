@@ -66,3 +66,16 @@ export function formatSigned(n: number): string {
   const sign = n >= 0 ? '+' : '−';
   return sign + formatAmount(Math.abs(n));
 }
+
+/**
+ * Returns a compact display name: first name + last initial with a dot.
+ *   "Himanshu Relhan" → "Himanshu R."
+ *   "Raj"             → "Raj"
+ *   ""  / null        → "—"
+ */
+export function formatDisplayName(name: string | null | undefined): string {
+  if (!name?.trim()) return '—';
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0];
+  return `${parts[0]} ${parts[1][0].toUpperCase()}.`;
+}

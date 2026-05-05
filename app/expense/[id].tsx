@@ -9,7 +9,7 @@ import { useRef, useState } from 'react';
 import { colors, avatarColors } from '@/constants/colors';
 import { fonts } from '@/constants/typography';
 import { categories } from '@/constants/sampleData';
-import { formatAmount } from '@/constants/amountUtils';
+import { formatAmount, formatDisplayName } from '@/constants/amountUtils';
 import { initialsFromName } from '@/constants/dateFormat';
 import type { ExpenseComment, User, AvatarColor } from '@/types/database';
 import { DEV_USER_ID } from '@/lib/auth';
@@ -65,7 +65,7 @@ function CommentBubble({ comment, memberMap, currentUserId }: { comment: Expense
         </View>
       )}
       <View style={[bubbleStyles.bubble, isMe ? bubbleStyles.bubbleMe : bubbleStyles.bubbleThem]}>
-        {!isMe && <Text style={bubbleStyles.senderName}>{member.name}</Text>}
+        {!isMe && <Text style={bubbleStyles.senderName}>{formatDisplayName(member.name)}</Text>}
         <Text style={[bubbleStyles.messageText, isMe && { color: '#000' }]}>
           {comment.text}
         </Text>
@@ -295,7 +295,7 @@ export default function ExpenseDetailScreen() {
               <View style={styles.entryMetaText}>
                 {adder && (
                   <Text style={styles.entryMetaLabel}>
-                    Added by {adder.id === currentUserId ? 'you' : adder.name}
+                    Added by {adder.id === currentUserId ? 'you' : formatDisplayName(adder.name)}
                     {updatedFmt ? ' · edited' : ''}
                   </Text>
                 )}
@@ -354,7 +354,7 @@ export default function ExpenseDetailScreen() {
                   </View>
                   <View style={styles.memberInfo}>
                     <Text style={styles.memberName}>
-                      {payer.id === currentUserId ? `You (${payer.name})` : payer.name}
+                      {payer.id === currentUserId ? `You (${formatDisplayName(payer.name)})` : formatDisplayName(payer.name)}
                     </Text>
                     <Text style={styles.memberSub}>
                       Paid {formatAmount(expense.amount)}
@@ -390,7 +390,7 @@ export default function ExpenseDetailScreen() {
                         </View>
                         <View style={styles.memberInfo}>
                           <Text style={styles.memberName}>
-                            {m.id === currentUserId ? 'You' : m.name}
+                            {m.id === currentUserId ? 'You' : formatDisplayName(m.name)}
                           </Text>
                           {isPayer && (
                             <Text style={styles.payerTagText}>paid · settled</Text>

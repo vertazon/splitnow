@@ -49,10 +49,10 @@ import type { MemberLite } from '@/components/ActivityRow';
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function amountFontSize(len: number) {
-  if (len > 8) return 26;
-  if (len > 6) return 32;
-  if (len > 4) return 40;
-  return 50;
+  if (len > 8) return 20;
+  if (len > 6) return 24;
+  if (len > 4) return 28;
+  return 34;
 }
 
 // ─── Add Expense Sheet ────────────────────────────────────────────────────────
@@ -281,7 +281,7 @@ function AddExpenseSheet({
             <View style={sheetStyles.section}>
               <Text style={sheetStyles.sectionLabel}>CATEGORY</Text>
               <View style={sheetStyles.catGrid}>
-                {categories.slice(0, 9).map(cat => {
+                {categories.slice(0, 8).map(cat => {
                   const selected = selectedCatId === cat.id;
                   return (
                     <TouchableOpacity
@@ -298,7 +298,7 @@ function AddExpenseSheet({
                   );
                 })}
                 {(() => {
-                  const isMoreSel = !categories.slice(0, 9).find(c => c.id === selectedCatId);
+                  const isMoreSel = !categories.slice(0, 8).find(c => c.id === selectedCatId);
                   const moreCat = isMoreSel ? categories.find(c => c.id === selectedCatId) : null;
                   return (
                     <TouchableOpacity

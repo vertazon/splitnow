@@ -6,6 +6,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { colors, avatarColors } from '@/constants/colors';
 import { fonts } from '@/constants/typography';
 import { initialsFromName } from '@/constants/dateFormat';
@@ -21,20 +22,25 @@ function formatInviteCode(code: string): string {
   return `${code.slice(0, 4)} ${code.slice(4)}`.toUpperCase();
 }
 
-// ─── Your invite card ─────────────────────────────────────────────────────────
+// ─── Invite card ─────────────────────────────────────────────────────────────
 
 function MyInviteCard({ inviteCode, onShare }: { inviteCode: string; onShare: () => void }) {
   return (
     <View style={inviteStyles.card}>
-      <Text style={inviteStyles.label}>YOUR INVITE CODE</Text>
-      <View style={inviteStyles.codeRow}>
-        <Text style={inviteStyles.code}>{formatInviteCode(inviteCode)}</Text>
+      <View style={inviteStyles.topRow}>
+        <Text style={inviteStyles.label}>YOUR INVITE CODE</Text>
         <TouchableOpacity style={inviteStyles.shareBtn} onPress={onShare} activeOpacity={0.8}>
-          <Text style={inviteStyles.shareBtnText}>Share →</Text>
+          <Ionicons name="share-outline" size={14} color="#000" />
+          <Text style={inviteStyles.shareBtnText}>Share</Text>
         </TouchableOpacity>
       </View>
+
+      <View style={inviteStyles.codeBlock}>
+        <Text style={inviteStyles.codeText}>{inviteCode.toUpperCase()}</Text>
+      </View>
+
       <Text style={inviteStyles.hint}>
-        Ask your friend to open SplitNow → Friends → "Add a friend" and type this code.
+        Share this code with a friend — they enter it in "Add a friend" below.
       </Text>
     </View>
   );
@@ -49,6 +55,12 @@ const inviteStyles = StyleSheet.create({
     padding: 18,
     marginBottom: 12,
   },
+  topRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 14,
+  },
   label: {
     fontFamily: fonts.dmSansSemiBold,
     fontSize: 10,
@@ -56,51 +68,55 @@ const inviteStyles = StyleSheet.create({
     letterSpacing: 1,
     textTransform: 'uppercase',
     color: colors.accent,
-    opacity: 0.8,
-    marginBottom: 8,
-  },
-  codeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 10,
-  },
-  code: {
-    fontFamily: fonts.syne,
-    fontSize: 28,
-    fontWeight: '800',
-    color: colors.accent,
-    letterSpacing: 4,
+    opacity: 0.9,
   },
   shareBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
     backgroundColor: colors.accent,
-    borderRadius: 14,
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    justifyContent: 'center',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
     shadowColor: colors.accent,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
   },
   shareBtnText: {
     fontFamily: fonts.syne,
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '800',
     color: '#000',
   },
+  codeBlock: {
+    backgroundColor: 'rgba(0,212,154,0.12)',
+    borderWidth: 1,
+    borderColor: colors.accentMid,
+    borderRadius: 14,
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginBottom: 14,
+  },
+  codeText: {
+    fontFamily: fonts.syne,
+    fontSize: 26,
+    fontWeight: '800',
+    color: colors.accent,
+    letterSpacing: 6,
+  },
   hint: {
     fontFamily: fonts.dmSans,
-    fontSize: 12,
+    fontSize: 11,
     color: colors.text2,
-    lineHeight: 17,
+    lineHeight: 16,
   },
 });
 
 // ─── Add a friend card ────────────────────────────────────────────────────────
 
-function AddFriendCard({ onConnect }: { onConnect: (code: string) => void; loading: boolean }) {
+function AddFriendCard({ onConnect }: { onConnect: (code: string) => void }) {
   const [code, setCode] = useState('');
   const inputRef = useRef<TextInput>(null);
 
@@ -117,14 +133,14 @@ function AddFriendCard({ onConnect }: { onConnect: (code: string) => void; loadi
   return (
     <View style={addStyles.card}>
       <Text style={addStyles.label}>ADD A FRIEND</Text>
-      <Text style={addStyles.sub}>Enter the 8-character code your friend shared with you.</Text>
+      <Text style={addStyles.sub}>Enter your friend's 8-character invite code.</Text>
       <View style={addStyles.row}>
         <TextInput
           ref={inputRef}
-          style={addStyles.input}
+          style={[addStyles.input, isReady && addStyles.inputReady]}
           value={code}
           onChangeText={t => setCode(t.toUpperCase().replace(/[^A-Z2-9]/g, '').slice(0, 8))}
-          placeholder="ABCD EFGH"
+          placeholder="XXXX XXXX"
           placeholderTextColor={colors.text3}
           autoCapitalize="characters"
           autoCorrect={false}
@@ -153,7 +169,7 @@ const addStyles = StyleSheet.create({
     borderColor: colors.border,
     borderRadius: 22,
     padding: 18,
-    marginBottom: 20,
+    marginBottom: 24,
   },
   label: {
     fontFamily: fonts.dmSansSemiBold,
@@ -169,7 +185,6 @@ const addStyles = StyleSheet.create({
     fontSize: 12,
     color: colors.text3,
     marginBottom: 14,
-    lineHeight: 17,
   },
   row: {
     flexDirection: 'row',
@@ -188,7 +203,10 @@ const addStyles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '800',
     color: colors.text,
-    letterSpacing: 3,
+    letterSpacing: 4,
+  },
+  inputReady: {
+    borderColor: colors.accent,
   },
   connectBtn: {
     backgroundColor: colors.accent,
@@ -202,7 +220,7 @@ const addStyles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 6,
   },
-  connectBtnDim: { opacity: 0.4 },
+  connectBtnDim: { opacity: 0.35 },
   connectBtnText: {
     fontFamily: fonts.syne,
     fontSize: 14,
@@ -223,20 +241,29 @@ function FriendRow({ friend, onRemove }: { friend: User; onRemove: () => void })
           {initialsFromName(friend.name ?? '?')}
         </Text>
       </View>
+
       <View style={rowStyles.info}>
-        <Text style={rowStyles.name}>{friend.name ?? '—'}</Text>
-        {friend.upi_id
-          ? <Text style={rowStyles.upi}>{friend.upi_id}</Text>
-          : <Text style={rowStyles.upiMissing}>No UPI ID set</Text>
-        }
+        <Text style={rowStyles.name} numberOfLines={1}>{friend.name ?? '—'}</Text>
+        {friend.upi_id ? (
+          <View style={rowStyles.upiRow}>
+            <View style={[rowStyles.upiDot, { backgroundColor: colors.accent }]} />
+            <Text style={rowStyles.upi} numberOfLines={1}>{friend.upi_id}</Text>
+          </View>
+        ) : (
+          <View style={rowStyles.upiRow}>
+            <View style={[rowStyles.upiDot, { backgroundColor: colors.text3 }]} />
+            <Text style={rowStyles.upiMissing}>No UPI ID</Text>
+          </View>
+        )}
       </View>
+
       <TouchableOpacity
         style={rowStyles.removeBtn}
         onPress={onRemove}
-        activeOpacity={0.7}
-        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        activeOpacity={0.6}
+        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
       >
-        <Text style={rowStyles.removeBtnText}>Remove</Text>
+        <Ionicons name="person-remove-outline" size={16} color={colors.text3} />
       </TouchableOpacity>
     </View>
   );
@@ -251,20 +278,59 @@ const rowStyles = StyleSheet.create({
     gap: 12,
   },
   avatar: {
-    width: 42, height: 42, borderRadius: 21,
-    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
   },
-  avatarText: { fontFamily: fonts.dmSansSemiBold, fontSize: 14, fontWeight: '700' },
-  info: { flex: 1 },
-  name: { fontFamily: fonts.dmSansSemiBold, fontSize: 14, fontWeight: '600', color: colors.text },
-  upi: { fontFamily: fonts.dmSans, fontSize: 11, color: colors.text2, marginTop: 2 },
-  upiMissing: { fontFamily: fonts.dmSans, fontSize: 11, color: colors.text3, marginTop: 2 },
+  avatarText: {
+    fontFamily: fonts.dmSansSemiBold,
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  info: { flex: 1, minWidth: 0 },
+  name: {
+    fontFamily: fonts.dmSansSemiBold,
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 4,
+  },
+  upiRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  upiDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 3,
+    flexShrink: 0,
+  },
+  upi: {
+    fontFamily: fonts.dmSans,
+    fontSize: 11,
+    color: colors.text2,
+    flexShrink: 1,
+  },
+  upiMissing: {
+    fontFamily: fonts.dmSans,
+    fontSize: 11,
+    color: colors.text3,
+  },
   removeBtn: {
-    paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8,
-    backgroundColor: colors.dangerDim,
-    borderWidth: 1, borderColor: 'rgba(255,89,89,0.2)',
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: colors.cardElevated,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
   },
-  removeBtnText: { fontFamily: fonts.dmSansSemiBold, fontSize: 11, fontWeight: '600', color: colors.danger },
 });
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
@@ -278,7 +344,6 @@ export default function FriendsScreen() {
 
   const { data: friends = [], isLoading } = useFriends(currentUserId);
   const removeFriend = useRemoveFriend();
-  const [connecting, setConnecting] = useState(false);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
@@ -292,8 +357,6 @@ export default function FriendsScreen() {
     if (!inviteCode) return;
     await Share.share({
       title: 'Add me on SplitNow',
-      // No custom URL scheme — WhatsApp/iMessage don't make them tappable.
-      // Make the code the hero so the recipient can enter it manually.
       message:
         `Hey! I use SplitNow to split expenses.\n\n` +
         `Add me as a friend:\n\n` +
@@ -305,8 +368,13 @@ export default function FriendsScreen() {
   }, [inviteCode]);
 
   const handleConnect = useCallback((code: string) => {
+    // Catch self-add client-side before even navigating
+    if (inviteCode && code.toLowerCase() === inviteCode.toLowerCase()) {
+      Alert.alert("That's your own code", "Share this code with someone else to connect.");
+      return;
+    }
     router.push(`/join/${code.toLowerCase()}` as never);
-  }, [router]);
+  }, [router, inviteCode]);
 
   const handleRemove = useCallback((friend: User) => {
     Alert.alert(
@@ -342,18 +410,22 @@ export default function FriendsScreen() {
         }
       >
         {/* Header */}
-        <View style={styles.headerRow}>
-          <Text style={styles.title}>Friends</Text>
-          {friends.length > 0 && (
-            <Text style={styles.badge}>{friends.length}</Text>
-          )}
+        <View style={styles.header}>
+          <View>
+            <Text style={styles.title}>Friends</Text>
+            <Text style={styles.subtitle}>
+              {friends.length > 0
+                ? `${friends.length} ${friends.length === 1 ? 'person' : 'people'} connected`
+                : 'Connect with people you split with'}
+            </Text>
+          </View>
         </View>
 
         {/* Your invite code */}
         {inviteCode && <MyInviteCard inviteCode={inviteCode} onShare={handleShare} />}
 
         {/* Add a friend */}
-        <AddFriendCard onConnect={handleConnect} loading={connecting} />
+        <AddFriendCard onConnect={handleConnect} />
 
         {/* Loading */}
         {isLoading && friends.length === 0 && (
@@ -364,7 +436,7 @@ export default function FriendsScreen() {
 
         {/* Friends list */}
         {friends.length > 0 && (
-          <View style={styles.section}>
+          <View>
             <Text style={styles.sectionLabel}>YOUR FRIENDS</Text>
             <View style={styles.card}>
               {friends.map((friend, i) => (
@@ -380,10 +452,12 @@ export default function FriendsScreen() {
         {/* Empty state */}
         {!isLoading && friends.length === 0 && (
           <View style={styles.emptyWrap}>
-            <Text style={styles.emptyIcon}>👥</Text>
+            <View style={styles.emptyIconWrap}>
+              <Text style={styles.emptyIcon}>👥</Text>
+            </View>
             <Text style={styles.emptyTitle}>No friends yet</Text>
             <Text style={styles.emptySub}>
-              Share your code above, or ask a friend for theirs and enter it in "Add a friend".
+              Share your code or enter a friend's code above to connect.
             </Text>
           </View>
         )}
@@ -398,37 +472,76 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
   content: {
     paddingHorizontal: 22,
-    paddingTop: 20,
+    paddingTop: 16,
     paddingBottom: Platform.OS === 'ios' ? 110 : 90,
   },
-  headerRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 20,
+  header: {
+    marginBottom: 20,
   },
-  title: { fontFamily: fonts.syne, fontSize: 22, fontWeight: '800', color: colors.text },
-  badge: {
-    fontFamily: fonts.dmSansSemiBold, fontSize: 12, fontWeight: '600',
-    color: colors.text2, backgroundColor: colors.cardElevated,
-    paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8,
+  title: {
+    fontFamily: fonts.syne,
+    fontSize: 22,
+    fontWeight: '800',
+    color: colors.text,
+    marginBottom: 3,
   },
-  section: { marginBottom: 16 },
+  subtitle: {
+    fontFamily: fonts.dmSans,
+    fontSize: 12,
+    color: colors.text2,
+  },
   sectionLabel: {
-    fontFamily: fonts.dmSansSemiBold, fontSize: 10, fontWeight: '700',
-    letterSpacing: 1, textTransform: 'uppercase', color: colors.text2, marginBottom: 10,
+    fontFamily: fonts.dmSansSemiBold,
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    color: colors.text2,
+    marginBottom: 10,
   },
   card: {
-    backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border,
-    borderRadius: 22, paddingVertical: 4, overflow: 'hidden',
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 22,
+    overflow: 'hidden',
   },
-  divider: { height: 1, backgroundColor: colors.border, marginHorizontal: 16 },
+  divider: {
+    height: 1,
+    backgroundColor: colors.border,
+    marginHorizontal: 16,
+  },
   centered: { paddingTop: 48, alignItems: 'center' },
-  emptyWrap: { alignItems: 'center', paddingTop: 16, gap: 10 },
-  emptyIcon: { fontSize: 44 },
+  emptyWrap: {
+    alignItems: 'center',
+    paddingTop: 8,
+    gap: 10,
+  },
+  emptyIconWrap: {
+    width: 72,
+    height: 72,
+    borderRadius: 24,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  emptyIcon: { fontSize: 32 },
   emptyTitle: {
-    fontFamily: fonts.syne, fontSize: 18, fontWeight: '800',
-    color: colors.text, textAlign: 'center',
+    fontFamily: fonts.syne,
+    fontSize: 18,
+    fontWeight: '800',
+    color: colors.text,
+    textAlign: 'center',
   },
   emptySub: {
-    fontFamily: fonts.dmSans, fontSize: 13, color: colors.text2,
-    textAlign: 'center', lineHeight: 19, paddingHorizontal: 16,
+    fontFamily: fonts.dmSans,
+    fontSize: 13,
+    color: colors.text2,
+    textAlign: 'center',
+    lineHeight: 19,
+    paddingHorizontal: 24,
   },
 });

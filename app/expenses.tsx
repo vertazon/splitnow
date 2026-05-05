@@ -17,10 +17,12 @@ import type { AvatarColor } from '@/types/database';
 import { DEV_USER_ID } from '@/lib/auth';
 import { useUserStore } from '@/store/useUserStore';
 import { useGroupStore } from '@/store/useGroupStore';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueries } from '@tanstack/react-query';
 import { fetchExpenses, type ExpenseWithSplits } from '@/hooks/useExpenses';
+import { fetchMembersForGroup } from '@/hooks/useMembers';
 import { qk } from '@/lib/queryKeys';
 import { useMembers } from '@/hooks/useMembers';
+import { useGroupDetail, useGroups } from '@/hooks/useGroups';
 import { ActivityRow, NET_COLORS, getNetBalance } from '@/components/ActivityRow';
 import type { MemberLite } from '@/components/ActivityRow';
 
@@ -28,7 +30,17 @@ import type { MemberLite } from '@/components/ActivityRow';
 
 type Filter = 'all' | 'lent' | 'owed' | 'personal';
 
-const FILTERS: { id: Filter; label: string }[] = [
+const SHARED_FILTERS: { id: Filter; label: string }[] = [
+  { id: 'all',  label: 'All'  },
+  { id: 'lent', label: 'Lent' },
+  { id: 'owed', label: 'Owed' },
+];
+
+const PERSONAL_FILTERS: { id: Filter; label: string }[] = [
+  { id: 'personal', label: 'Personal' },
+];
+
+const ALL_FILTERS: { id: Filter; label: string }[] = [
   { id: 'all',      label: 'All'      },
   { id: 'lent',     label: 'Lent'     },
   { id: 'owed',     label: 'Owed'     },
@@ -41,29 +53,100 @@ export default function ExpensesScreen() {
   const router = useRouter();
   const groupId = useGroupStore(s => s.currentGroupId);
   const currentUserId = useUserStore(s => s.currentUserId) ?? DEV_USER_ID;
+  const isAllMode = !groupId;
 
-  // Use useQuery directly (not useExpenses) so we read from the shared cache
-  // without opening a second realtime channel — Home tab already owns that subscription.
-  const { data: expenses = [], isLoading, error } = useQuery<ExpenseWithSplits[]>({
+  // All-mode: need all group IDs to fan out queries
+  const { data: groups = [] } = useGroups(currentUserId);
+  const activeGroups = groups.filter(g => !g.archived_at);
+  const allGroupIds = activeGroups.map(g => g.id);
+
+  // Single-group: read from the shared cache (no second realtime channel)
+  const { data: singleExpenses = [], isLoading: singleLoading, error: singleError } = useQuery<ExpenseWithSplits[]>({
     queryKey: qk.expenses.list(groupId),
     queryFn: () => fetchExpenses(groupId as string),
     enabled: !!groupId,
   });
-  const { data: members = [] } = useMembers(groupId);
+  const { data: singleMembers = [] } = useMembers(groupId);
+  const { data: group } = useGroupDetail(groupId);
 
-  const [activeFilter, setActiveFilter] = useState<Filter>('all');
+  // All-mode: fan out across every active group
+  const allExpensesResults = useQueries({
+    queries: allGroupIds.map(id => ({
+      queryKey: qk.expenses.list(id),
+      queryFn: () => fetchExpenses(id),
+      enabled: isAllMode && allGroupIds.length > 0,
+    })),
+  });
+  const allMembersResults = useQueries({
+    queries: allGroupIds.map(id => ({
+      queryKey: qk.members.list(id),
+      queryFn: () => fetchMembersForGroup(id),
+      enabled: isAllMode && allGroupIds.length > 0,
+    })),
+  });
+
+  // Merge based on mode
+  const expenses: ExpenseWithSplits[] = isAllMode
+    ? allExpensesResults
+        .flatMap(r => r.data ?? [])
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    : singleExpenses;
+
+  const allMembers = isAllMode
+    ? (() => {
+        const seen = new Set<string>();
+        return allMembersResults.flatMap(r => r.data ?? []).filter(m => {
+          if (seen.has(m.id)) return false;
+          seen.add(m.id);
+          return true;
+        });
+      })()
+    : singleMembers;
+
+  const isLoading = isAllMode
+    ? allExpensesResults.some(r => r.isLoading)
+    : singleLoading;
+  const error = isAllMode
+    ? (allExpensesResults.find(r => r.error)?.error ?? null)
+    : singleError;
+
+  // Group badge map for All-mode rows
+  const groupBadgeMap = new Map<string, string>(
+    activeGroups.map(g => [g.id, `${g.cover_emoji} ${g.name}`])
+  );
+
+  const isPersonalGroup = group?.group_type === 'personal';
+
+  // Which filter chips to show depends on the group context:
+  // • Personal group  → only "Personal" (lent/owed are meaningless here)
+  // • Shared group    → "All", "Lent", "Owed" (no Personal)
+  // • All mode (null) → all four filters
+  const visibleFilters = isAllMode
+    ? ALL_FILTERS
+    : isPersonalGroup
+      ? PERSONAL_FILTERS
+      : SHARED_FILTERS;
+
+  const [activeFilter, setActiveFilter] = useState<Filter>(() =>
+    isPersonalGroup ? 'personal' : 'all'
+  );
+
+  // If the active filter isn't visible in the current context, reset it
+  const safeFilter = visibleFilters.find(f => f.id === activeFilter)
+    ? activeFilter
+    : visibleFilters[0].id;
 
   const memberMap = useMemo(
     () => new Map<string, MemberLite>(
-      members.map(m => [m.id, { id: m.id, name: m.name ?? m.id, color: (m.avatar_color ?? 'green') as AvatarColor }])
+      allMembers.map(m => [m.id, { id: m.id, name: m.name ?? m.id, color: (m.avatar_color ?? 'green') as AvatarColor }])
     ),
-    [members]
+    [allMembers]
   );
 
   const filtered = useMemo(() => {
-    if (activeFilter === 'all') return expenses;
-    return expenses.filter(e => getNetBalance(e, currentUserId).type === activeFilter);
-  }, [expenses, activeFilter, currentUserId]);
+    if (safeFilter === 'all') return expenses;
+    return expenses.filter(e => getNetBalance(e, currentUserId).type === safeFilter);
+  }, [expenses, safeFilter, currentUserId]);
 
   // Summary line
   const totalNet = useMemo(() => {
@@ -82,6 +165,7 @@ export default function ExpensesScreen() {
         memberMap={memberMap}
         currentUserId={currentUserId}
         onPress={() => router.push(`/expense/${item.id}` as never)}
+        groupBadge={isAllMode ? groupBadgeMap.get(item.group_id) : undefined}
       />
       {index < filtered.length - 1 && <View style={styles.divider} />}
     </View>
@@ -98,24 +182,26 @@ export default function ExpensesScreen() {
         <Text style={styles.count}>{expenses.length}</Text>
       </View>
 
-      {/* Filter chips */}
-      <View style={styles.filterRow}>
-        {FILTERS.map(f => (
-          <TouchableOpacity
-            key={f.id}
-            style={[styles.filterChip, activeFilter === f.id && styles.filterChipActive]}
-            onPress={() => setActiveFilter(f.id)}
-            activeOpacity={0.7}
-          >
-            <Text style={[styles.filterLabel, activeFilter === f.id && styles.filterLabelActive]}>
-              {f.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+      {/* Filter chips — only rendered when there is more than one option */}
+      {visibleFilters.length > 1 && (
+        <View style={styles.filterRow}>
+          {visibleFilters.map(f => (
+            <TouchableOpacity
+              key={f.id}
+              style={[styles.filterChip, safeFilter === f.id && styles.filterChipActive]}
+              onPress={() => setActiveFilter(f.id)}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.filterLabel, safeFilter === f.id && styles.filterLabelActive]}>
+                {f.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
 
       {/* Net summary */}
-      {filtered.length > 0 && activeFilter !== 'personal' && (
+      {filtered.length > 0 && safeFilter !== 'personal' && (
         <View style={styles.summaryRow}>
           <Text style={styles.summaryText}>
             {filtered.length} {filtered.length === 1 ? 'expense' : 'expenses'}
@@ -143,9 +229,9 @@ export default function ExpensesScreen() {
           <Text style={styles.emptyIcon}>🗂️</Text>
           <Text style={styles.emptyTitle}>Nothing here</Text>
           <Text style={styles.emptySub}>
-            {activeFilter === 'all'
+            {safeFilter === 'all'
               ? 'Add your first expense to get started.'
-              : `No ${activeFilter} expenses yet.`}
+              : `No ${safeFilter} expenses yet.`}
           </Text>
         </View>
       ) : (
@@ -157,7 +243,13 @@ export default function ExpensesScreen() {
           showsVerticalScrollIndicator={false}
           style={styles.list}
           ItemSeparatorComponent={null}
-          ListFooterComponent={<View style={{ height: Platform.OS === 'ios' ? 40 : 20 }} />}
+          ListFooterComponent={
+            <View style={{ alignItems: 'center', paddingVertical: 16, paddingBottom: Platform.OS === 'ios' ? 40 : 20 }}>
+              {expenses.length >= 100 && (
+                <Text style={styles.limitNote}>Showing most recent 100 expenses</Text>
+              )}
+            </View>
+          }
         />
       )}
     </SafeAreaView>
@@ -292,5 +384,10 @@ const styles = StyleSheet.create({
     color: colors.text2,
     textAlign: 'center',
     paddingHorizontal: 32,
+  },
+  limitNote: {
+    fontFamily: fonts.dmSans,
+    fontSize: 11,
+    color: colors.text3,
   },
 });

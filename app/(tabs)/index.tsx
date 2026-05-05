@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, useQueries } from '@tanstack/react-query';
 import { colors, avatarColors } from '@/constants/colors';
 import { fonts } from '@/constants/typography';
 import { formatAmount } from '@/constants/amountUtils';
@@ -21,10 +21,11 @@ import type { Balance, AvatarColor } from '@/types/database';
 import { DEV_USER_ID } from '@/lib/auth';
 import { useUserStore } from '@/store/useUserStore';
 import { useGroupStore } from '@/store/useGroupStore';
-import { useExpenses, type ExpenseWithSplits } from '@/hooks/useExpenses';
-import { useBalances, useNetBalance } from '@/hooks/useBalances';
-import { useMembers } from '@/hooks/useMembers';
+import { fetchExpenses } from '@/hooks/useExpenses';
+import { fetchBalancesForGroup } from '@/hooks/useBalances';
+import { fetchMembersForGroup } from '@/hooks/useMembers';
 import { useGroups } from '@/hooks/useGroups';
+import { useSettleUp } from '@/hooks/useSettlements';
 import { BalanceRow } from '@/components/BalanceCard';
 import { ToastNotification } from '@/components/ToastNotification';
 import { ActivityRow } from '@/components/ActivityRow';
@@ -42,11 +43,73 @@ export default function HomeScreen() {
 
   const { data: groups = [] } = useGroups(currentUserId);
   const activeGroups = groups.filter(g => !g.archived_at);
+  const allGroupIds = activeGroups.map(g => g.id);
 
-  const { data: expenses = [], isLoading: expLoading, error: expError } = useExpenses(groupId);
-  const { data: balances = [], isLoading: balLoading } = useBalances(groupId);
-  const { net: netAmt } = useNetBalance(groupId ?? '');
-  const { data: members = [] } = useMembers(groupId);
+  // Fetch expenses, balances, and members for every active group.
+  // useQueries runs them in parallel and leverages the shared cache,
+  // so switching between "All" and individual groups is instant.
+  const expensesResults = useQueries({
+    queries: allGroupIds.map(id => ({
+      queryKey: qk.expenses.list(id),
+      queryFn: () => fetchExpenses(id),
+      enabled: allGroupIds.length > 0,
+    })),
+  });
+
+  const balancesResults = useQueries({
+    queries: allGroupIds.map(id => ({
+      queryKey: qk.balances.list(id, currentUserId),
+      queryFn: () => fetchBalancesForGroup(id, currentUserId),
+      enabled: allGroupIds.length > 0,
+    })),
+  });
+
+  const membersResults = useQueries({
+    queries: allGroupIds.map(id => ({
+      queryKey: qk.members.list(id),
+      queryFn: () => fetchMembersForGroup(id),
+      enabled: allGroupIds.length > 0,
+    })),
+  });
+
+  // Merge all data across groups, sorted newest-first
+  const allExpenses = expensesResults
+    .flatMap(r => r.data ?? [])
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+  // For a selected group, filter; for "All", show everything
+  const expenses = groupId
+    ? allExpenses.filter(e => e.group_id === groupId)
+    : allExpenses;
+
+  // For balances: single-group → use that group's result; All → aggregate per counterparty
+  const singleGroupBalances = groupId
+    ? (balancesResults[allGroupIds.indexOf(groupId)]?.data ?? [])
+    : [];
+
+  const aggregatedBalances: Balance[] = (() => {
+    if (groupId) return singleGroupBalances;
+    const map = new Map<string, Balance>();
+    balancesResults.flatMap(r => r.data ?? []).forEach(b => {
+      const existing = map.get(b.userId);
+      if (existing) {
+        map.set(b.userId, { ...existing, amount: parseFloat((existing.amount + b.amount).toFixed(2)) });
+      } else {
+        map.set(b.userId, { ...b });
+      }
+    });
+    return Array.from(map.values()).filter(b => Math.abs(b.amount) >= 0.01);
+  })();
+
+  const balances = aggregatedBalances;
+  const netAmt = parseFloat(balances.reduce((s, b) => s + b.amount, 0).toFixed(2));
+
+  // Combined member map across all groups for ActivityRow name resolution
+  const allMembers = membersResults.flatMap(r => r.data ?? []);
+
+  const expLoading = expensesResults.some(r => r.isLoading);
+  const balLoading = balancesResults.some(r => r.isLoading);
+  const expError = expensesResults.find(r => r.error)?.error ?? null;
 
   const qc = useQueryClient();
   const [refreshing, setRefreshing] = useState(false);
@@ -70,19 +133,37 @@ export default function HomeScreen() {
     toastTimer.current = setTimeout(() => setToastVisible(false), 2400);
   }, []);
 
-  const handlePay = useCallback((b: Balance) => {
-    // UPI deeplink — disabled until UPI settlement is re-enabled
-    // if (b.upiId) {
-    //   const amt = Math.abs(b.amount);
-    //   const url = `upi://pay?pa=${b.upiId}&pn=${b.name}&am=${amt}&cu=INR`;
-    //   Linking.openURL(url).catch(() => {});
-    // }
-    showToast(`Marked as paid to ${b.name} ✓`);
-  }, [showToast]);
+  const settleUp = useSettleUp();
 
-  // Map for fast lookup inside ActivityRow + MiniAvatars
+  const handlePay = useCallback(async (b: Balance) => {
+    try {
+      if (groupId) {
+        // Single-group context — settle the full balance in that group
+        await settleUp.mutateAsync({ groupId, toUserId: b.userId, amount: Math.abs(b.amount) });
+      } else {
+        // "All" context — find every group where we owe this person and settle each
+        const debts = allGroupIds
+          .map((gid, i) => ({
+            gid,
+            bal: balancesResults[i]?.data?.find(x => x.userId === b.userId && x.amount < 0),
+          }))
+          .filter((x): x is { gid: string; bal: Balance } => !!x.bal);
+
+        await Promise.all(
+          debts.map(({ gid, bal }) =>
+            settleUp.mutateAsync({ groupId: gid, toUserId: b.userId, amount: Math.abs(bal.amount) })
+          )
+        );
+      }
+      showToast(`Settled with ${b.name} ✓`);
+    } catch {
+      showToast('Could not record settlement');
+    }
+  }, [groupId, allGroupIds, balancesResults, settleUp, showToast]);
+
+  // Map for fast lookup inside ActivityRow + MiniAvatars — covers all groups
   const memberMap = new Map<string, MemberLite>(
-    members.map(m => [m.id, { id: m.id, name: m.name ?? m.id, color: (m.avatar_color ?? 'green') as AvatarColor }])
+    allMembers.map(m => [m.id, { id: m.id, name: m.name ?? m.id, color: (m.avatar_color ?? 'green') as AvatarColor }])
   );
 
   // Map group_id → badge string for activity rows (shown when viewing "All" context)
@@ -95,6 +176,17 @@ export default function HomeScreen() {
   const owesYouCount = balances.filter(b => b.amount > 0).length;
 
   const isLoading = expLoading || balLoading;
+
+  // Personal group context
+  const currentGroup = activeGroups.find(g => g.id === groupId);
+  const isPersonalGroup = currentGroup?.group_type === 'personal';
+
+  const totalSpent = expenses.reduce((s, e) => s + e.amount, 0);
+  const now = new Date();
+  const thisMonthCount = expenses.filter(e => {
+    const d = new Date(e.created_at);
+    return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+  }).length;
 
   // Current user profile for header
   const currentUser = useUserStore(s => s.currentUser);
@@ -170,61 +262,62 @@ export default function HomeScreen() {
           </ScrollView>
         )}
 
-        {/* Net Balance Card */}
-        <View style={[styles.card, isOwed ? styles.balanceCardAccent : styles.balanceCardDanger]}>
-          {groupId && activeGroups.find(g => g.id === groupId) ? (
-            <View style={styles.balanceLabelRow}>
-              <Text style={[styles.sectionLabel, { marginBottom: 0 }]}>NET BALANCE</Text>
-              <View style={styles.groupBadgeInline}>
-                <Text style={styles.groupBadgeInlineText}>
-                  {activeGroups.find(g => g.id === groupId)!.cover_emoji}{' '}
-                  {activeGroups.find(g => g.id === groupId)!.name}
+        {/* Summary card — spending for personal group, net balance otherwise */}
+        {isPersonalGroup ? (
+          <View style={[styles.card, styles.balanceCardNeutral]}>
+            <Text style={styles.sectionLabel}>PERSONAL SPENDING</Text>
+            {expLoading && expenses.length === 0 ? (
+              <ActivityIndicator color={colors.text2} style={{ marginVertical: 12 }} />
+            ) : (
+              <>
+                <Text style={[styles.balanceAmount, { color: colors.text }]}>
+                  {formatAmount(totalSpent)}
                 </Text>
-              </View>
-            </View>
-          ) : (
-            <Text style={styles.sectionLabel}>NET BALANCE</Text>
-          )}
-          {balLoading && balances.length === 0 ? (
-            <ActivityIndicator color={colors.text2} style={{ marginVertical: 12 }} />
-          ) : (
-            <>
-              <Text style={[styles.balanceAmount, isOwed ? styles.accent : styles.danger]}>
-                {isOwed ? '+' : '−'}{formatAmount(Math.abs(netAmt))}
-              </Text>
-              <Text style={styles.balanceSub}>
-                {balances.length === 0
-                  ? 'All settled up ✓'
-                  : isOwed
-                    ? `from ${owesYouCount} ${owesYouCount === 1 ? 'person' : 'people'}`
-                    : `to ${owedToCount} ${owedToCount === 1 ? 'person' : 'people'}`}
-              </Text>
-              {!isOwed && balances.length > 0 && (
-                <TouchableOpacity
-                  style={styles.settleUpBtn}
-                  onPress={() => router.push('/(tabs)/settle' as never)}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.settleUpBtnText}>⚡ Settle Up →</Text>
-                </TouchableOpacity>
-              )}
-            </>
-          )}
-        </View>
-
-        {/* Balances */}
-        {balances.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionLabel}>BALANCES</Text>
-            <View style={[styles.card, { padding: 0, paddingVertical: 4 }]}>
-              {balances.map((b, i) => (
-                <View key={b.userId}>
-                  <BalanceRow balance={b} onPay={handlePay} />
-                  {i < balances.length - 1 && <View style={styles.divider} />}
-                </View>
-              ))}
-            </View>
+                <Text style={styles.balanceSub}>
+                  {thisMonthCount > 0
+                    ? `${thisMonthCount} ${thisMonthCount === 1 ? 'expense' : 'expenses'} this month`
+                    : 'No expenses this month yet'}
+                </Text>
+              </>
+            )}
           </View>
+        ) : (
+          <>
+            <View style={[styles.card, isOwed ? styles.balanceCardAccent : styles.balanceCardDanger]}>
+              <Text style={styles.sectionLabel}>NET BALANCE</Text>
+              {balLoading && balances.length === 0 ? (
+                <ActivityIndicator color={colors.text2} style={{ marginVertical: 12 }} />
+              ) : (
+                <>
+                  <Text style={[styles.balanceAmount, isOwed ? styles.accent : styles.danger]}>
+                    {isOwed ? '+' : '−'}{formatAmount(Math.abs(netAmt))}
+                  </Text>
+                  <Text style={styles.balanceSub}>
+                    {balances.length === 0
+                      ? 'All settled up ✓'
+                      : isOwed
+                        ? `from ${owesYouCount} ${owesYouCount === 1 ? 'person' : 'people'}`
+                        : `to ${owedToCount} ${owedToCount === 1 ? 'person' : 'people'}`}
+                  </Text>
+                </>
+              )}
+            </View>
+
+            {/* Balances */}
+            {balances.length > 0 && (
+              <View style={styles.section}>
+                <Text style={styles.sectionLabel}>BALANCES</Text>
+                <View style={[styles.card, { padding: 0, paddingVertical: 4 }]}>
+                  {balances.map((b, i) => (
+                    <View key={b.userId}>
+                      <BalanceRow balance={b} onPay={handlePay} />
+                      {i < balances.length - 1 && <View style={styles.divider} />}
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
+          </>
         )}
 
         {/* Recent Activity */}
@@ -278,37 +371,37 @@ const styles = StyleSheet.create({
   scroll: { flex: 1 },
   content: {
     paddingHorizontal: 22,
-    paddingTop: 20,
+    paddingTop: 6,
     paddingBottom: Platform.OS === 'ios' ? 110 : 90,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 18,
+    marginBottom: 10,
   },
   greeting: {
     fontFamily: fonts.dmSans,
-    fontSize: 12,
+    fontSize: 11,
     color: colors.text2,
-    marginBottom: 3,
+    marginBottom: 1,
   },
   month: {
     fontFamily: fonts.syne,
-    fontSize: 22,
+    fontSize: 15,
     fontWeight: '800',
     color: colors.text,
   },
   avatar: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     alignItems: 'center',
     justifyContent: 'center',
   },
   avatarText: {
     fontFamily: fonts.dmSansSemiBold,
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '700',
   },
   card: {
@@ -316,7 +409,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: 22,
-    padding: 18,
+    padding: 16,
   },
   balanceCardDanger: {
     marginBottom: 16,
@@ -327,6 +420,11 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     backgroundColor: colors.accentDim,
     borderColor: colors.accentMid,
+  },
+  balanceCardNeutral: {
+    marginBottom: 16,
+    backgroundColor: colors.cardElevated,
+    borderColor: colors.borderEmphasis,
   },
   sectionLabel: {
     fontFamily: fonts.dmSansSemiBold,
@@ -339,9 +437,9 @@ const styles = StyleSheet.create({
   },
   balanceAmount: {
     fontFamily: fonts.syne,
-    fontSize: 42,
+    fontSize: 30,
     fontWeight: '800',
-    letterSpacing: -2,
+    letterSpacing: -1,
     marginBottom: 4,
   },
   accent: { color: colors.accent },
@@ -350,20 +448,6 @@ const styles = StyleSheet.create({
     fontFamily: fonts.dmSans,
     fontSize: 12,
     color: colors.text2,
-  },
-  settleUpBtn: {
-    marginTop: 14,
-    backgroundColor: colors.danger,
-    borderRadius: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    alignSelf: 'flex-start',
-  },
-  settleUpBtnText: {
-    fontFamily: fonts.syne,
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#fff',
   },
   section: { marginBottom: 16 },
   sectionHeader: {
@@ -401,7 +485,7 @@ const styles = StyleSheet.create({
   },
 
   // Group context chips
-  groupChipScroll: { marginBottom: 16, flexGrow: 0 },
+  groupChipScroll: { marginBottom: 10, flexGrow: 0 },
   groupChipContent: { gap: 8, paddingBottom: 2 },
   groupChip: {
     flexDirection: 'row', alignItems: 'center',
@@ -414,11 +498,4 @@ const styles = StyleSheet.create({
   groupChipAdd: { borderStyle: 'dashed' },
   groupChipAddText: { fontFamily: fonts.dmSansSemiBold, fontSize: 12, color: colors.text3 },
 
-  // Balance label row (with group badge)
-  balanceLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
-  groupBadgeInline: {
-    backgroundColor: colors.cardElevated, borderWidth: 1, borderColor: colors.border,
-    borderRadius: 8, paddingHorizontal: 7, paddingVertical: 2,
-  },
-  groupBadgeInlineText: { fontFamily: fonts.dmSansSemiBold, fontSize: 10, color: colors.text3 },
 });

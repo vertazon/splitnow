@@ -38,10 +38,10 @@ import type { AvatarColor } from '@/types/database';
 const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
 
 function amountFontSize(len: number) {
-  if (len > 8) return 26;
-  if (len > 6) return 32;
-  if (len > 4) return 40;
-  return 48;
+  if (len > 8) return 20;
+  if (len > 6) return 24;
+  if (len > 4) return 28;
+  return 34;
 }
 
 export default function AddScreen() {
@@ -292,7 +292,7 @@ export default function AddScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>CATEGORY</Text>
           <View style={styles.catGrid}>
-            {categories.slice(0, 9).map((cat) => (
+            {categories.slice(0, 8).map((cat) => (
               <CategoryChip
                 key={cat.id}
                 category={cat}
@@ -302,7 +302,7 @@ export default function AddScreen() {
               />
             ))}
             {(() => {
-              const isMoreSel = !categories.slice(0, 9).find(c => c.id === selectedCatId);
+              const isMoreSel = !categories.slice(0, 8).find(c => c.id === selectedCatId);
               const moreCat = isMoreSel ? categories.find(c => c.id === selectedCatId) : null;
               return (
                 <TouchableOpacity

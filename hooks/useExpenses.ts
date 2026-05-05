@@ -12,13 +12,16 @@ export interface ExpenseWithSplits extends Expense {
 
 // ─── Read ────────────────────────────────────────────────────────────────────
 
-/** Shared query fn — fetches expenses with splits + comments for a group. */
+const EXPENSES_PAGE_LIMIT = 100;
+
+/** Shared query fn — fetches the most recent 100 expenses with splits + comments for a group. */
 export async function fetchExpenses(groupId: string): Promise<ExpenseWithSplits[]> {
   const { data, error } = await supabase
     .from('expenses')
     .select('*, splits:expense_splits(*), comments:expense_comments(*)')
     .eq('group_id', groupId)
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: false })
+    .limit(EXPENSES_PAGE_LIMIT);
   if (error) throw error;
   return (data ?? []) as ExpenseWithSplits[];
 }

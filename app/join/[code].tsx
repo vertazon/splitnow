@@ -181,10 +181,10 @@ export default function JoinScreen() {
 
         <TouchableOpacity
           style={styles.cta}
-          onPress={() => router.replace('/(tabs)' as never)}
+          onPress={() => router.replace('/(tabs)/friends' as never)}
           activeOpacity={0.85}
         >
-          <Text style={styles.ctaText}>Go to Home</Text>
+          <Text style={styles.ctaText}>Back to Friends</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>

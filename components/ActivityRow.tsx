@@ -3,7 +3,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { colors, avatarColors } from '@/constants/colors';
 import { fonts } from '@/constants/typography';
 import { categories } from '@/constants/sampleData';
-import { formatAmount } from '@/constants/amountUtils';
+import { formatAmount, formatDisplayName } from '@/constants/amountUtils';
 import { formatActivityDate, initialsFromName } from '@/constants/dateFormat';
 import type { AvatarColor } from '@/types/database';
 import type { ExpenseWithSplits } from '@/hooks/useExpenses';
@@ -130,7 +130,7 @@ export function ActivityRow({
 
   const payerLabel = exp.paid_by === currentUserId
     ? 'You'
-    : memberMap.get(exp.paid_by ?? '')?.name ?? '';
+    : formatDisplayName(memberMap.get(exp.paid_by ?? '')?.name);
 
   const splitUserIds = (exp.splits ?? []).map(s => s.user_id);
   const dateStr = formatActivityDate(exp.created_at);
@@ -196,10 +196,10 @@ export function SettlementRow({
 }) {
   const fromName = settlement.from_user === currentUserId
     ? 'You'
-    : memberMap.get(settlement.from_user ?? '')?.name ?? 'Someone';
+    : formatDisplayName(memberMap.get(settlement.from_user ?? '')?.name);
   const toName = settlement.to_user === currentUserId
     ? 'you'
-    : memberMap.get(settlement.to_user ?? '')?.name ?? 'someone';
+    : formatDisplayName(memberMap.get(settlement.to_user ?? '')?.name);
 
   const dateStr = formatActivityDate(settlement.settled_at);
   const isCurrentUserSender = settlement.from_user === currentUserId;

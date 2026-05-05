@@ -13,7 +13,8 @@ export function useSettlements(groupId: string) {
         .from('settlements')
         .select('*')
         .eq('group_id', groupId)
-        .order('settled_at', { ascending: false });
+        .order('settled_at', { ascending: false })
+        .limit(100);
       if (error) throw error;
       return data ?? [];
     },

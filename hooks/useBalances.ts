@@ -28,83 +28,76 @@ interface RawSettlementRow {
  * Balance = SUM(expense_splits) − SUM(settlements)
  * No settled flag on splits — settlements are the source of truth for payments.
  */
+export async function fetchBalancesForGroup(groupId: string, currentUserId: string): Promise<Balance[]> {
+  const [splitsRes, settlementsRes, membersRes] = await Promise.all([
+    supabase
+      .from('expense_splits')
+      .select('amount_owed, user_id, expense:expenses!inner(paid_by, group_id)')
+      .eq('expense.group_id', groupId),
+    supabase
+      .from('settlements')
+      .select('from_user, to_user, amount')
+      .eq('group_id', groupId)
+      .eq('status', 'completed'),
+    supabase
+      .from('group_members')
+      .select('user:users(*)')
+      .eq('group_id', groupId),
+  ]);
+
+  if (splitsRes.error) throw splitsRes.error;
+  if (settlementsRes.error) throw settlementsRes.error;
+  if (membersRes.error) throw membersRes.error;
+
+  const userMap = new Map<string, User>();
+  (membersRes.data ?? []).forEach((row: any) => {
+    if (row.user) userMap.set(row.user.id, row.user as User);
+  });
+
+  const net = new Map<string, number>();
+
+  (splitsRes.data as unknown as RawSplitRow[] ?? []).forEach((s) => {
+    const payer = s.expense?.paid_by;
+    if (!payer || s.user_id === payer) return;
+    if (payer === currentUserId) {
+      net.set(s.user_id, (net.get(s.user_id) ?? 0) + s.amount_owed);
+    } else if (s.user_id === currentUserId) {
+      net.set(payer, (net.get(payer) ?? 0) - s.amount_owed);
+    }
+  });
+
+  (settlementsRes.data as unknown as RawSettlementRow[] ?? []).forEach((s) => {
+    if (!s.from_user || !s.to_user) return;
+    if (s.from_user === currentUserId) {
+      net.set(s.to_user, (net.get(s.to_user) ?? 0) + s.amount);
+    } else if (s.to_user === currentUserId) {
+      net.set(s.from_user, (net.get(s.from_user) ?? 0) - s.amount);
+    }
+  });
+
+  const balances: Balance[] = [];
+  net.forEach((amount, userId) => {
+    if (Math.abs(amount) < 0.01) return;
+    const u = userMap.get(userId);
+    if (!u) return;
+    balances.push({
+      userId,
+      name: u.name ?? userId,
+      amount: parseFloat(amount.toFixed(2)),
+      upiId: u.upi_id,
+      avatarColor: (u.avatar_color ?? 'green') as AvatarColor,
+    });
+  });
+
+  return balances;
+}
+
 export function useBalances(groupId: string | null | undefined) {
   const currentUserId = useUserStore(s => s.currentUserId) ?? DEV_USER_ID;
 
   return useQuery<Balance[]>({
     queryKey: qk.balances.list(groupId, currentUserId),
-    queryFn: async () => {
-      const gid = groupId as string; // guarded by enabled: !!groupId
-      const [splitsRes, settlementsRes, membersRes] = await Promise.all([
-        supabase
-          .from('expense_splits')
-          .select('amount_owed, user_id, expense:expenses!inner(paid_by, group_id)')
-          .eq('expense.group_id', gid),
-        supabase
-          .from('settlements')
-          .select('from_user, to_user, amount')
-          .eq('group_id', gid)
-          .eq('status', 'completed'),
-        supabase
-          .from('group_members')
-          .select('user:users(*)')
-          .eq('group_id', gid),
-      ]);
-
-      if (splitsRes.error) throw splitsRes.error;
-      if (settlementsRes.error) throw settlementsRes.error;
-      if (membersRes.error) throw membersRes.error;
-
-      const userMap = new Map<string, User>();
-      (membersRes.data ?? []).forEach((row: any) => {
-        if (row.user) userMap.set(row.user.id, row.user as User);
-      });
-
-      const net = new Map<string, number>();
-
-      // Gross debts from expense splits
-      (splitsRes.data as unknown as RawSplitRow[] ?? []).forEach((s) => {
-        const payer = s.expense?.paid_by;
-        if (!payer || s.user_id === payer) return;
-
-        if (payer === currentUserId) {
-          // counterparty owes me
-          net.set(s.user_id, (net.get(s.user_id) ?? 0) + s.amount_owed);
-        } else if (s.user_id === currentUserId) {
-          // I owe counterparty
-          net.set(payer, (net.get(payer) ?? 0) - s.amount_owed);
-        }
-      });
-
-      // Offset by settlements
-      (settlementsRes.data as unknown as RawSettlementRow[] ?? []).forEach((s) => {
-        if (!s.from_user || !s.to_user) return;
-
-        if (s.from_user === currentUserId) {
-          // I paid to_user → reduces my debt to them
-          net.set(s.to_user, (net.get(s.to_user) ?? 0) + s.amount);
-        } else if (s.to_user === currentUserId) {
-          // counterparty paid me → reduces their debt to me
-          net.set(s.from_user, (net.get(s.from_user) ?? 0) - s.amount);
-        }
-      });
-
-      const balances: Balance[] = [];
-      net.forEach((amount, userId) => {
-        if (Math.abs(amount) < 0.01) return;
-        const u = userMap.get(userId);
-        if (!u) return;
-        balances.push({
-          userId,
-          name: u.name ?? userId,
-          amount: parseFloat(amount.toFixed(2)),
-          upiId: u.upi_id,
-          avatarColor: (u.avatar_color ?? 'green') as AvatarColor,
-        });
-      });
-
-      return balances;
-    },
+    queryFn: () => fetchBalancesForGroup(groupId as string, currentUserId),
     enabled: !!groupId,
   });
 }
