@@ -382,7 +382,7 @@ const styles = StyleSheet.create({
   },
   greeting: {
     fontFamily: fonts.dmSans,
-    fontSize: 11,
+    fontSize: 13,
     color: colors.text2,
     marginBottom: 1,
   },
@@ -446,7 +446,7 @@ const styles = StyleSheet.create({
   danger: { color: colors.danger },
   balanceSub: {
     fontFamily: fonts.dmSans,
-    fontSize: 12,
+    fontSize: 13,
     color: colors.text2,
   },
   section: { marginBottom: 16 },
@@ -458,7 +458,7 @@ const styles = StyleSheet.create({
   },
   seeAll: {
     fontFamily: fonts.dmSansSemiBold,
-    fontSize: 11,
+    fontSize: 13,
     fontWeight: '600',
     color: colors.accent,
   },
@@ -493,9 +493,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.cardElevated, borderWidth: 1.5, borderColor: colors.borderEmphasis,
   },
   groupChipOn: { backgroundColor: colors.accentDim, borderColor: colors.accentMid },
-  groupChipText: { fontFamily: fonts.dmSansSemiBold, fontSize: 12, color: colors.text2 },
+  groupChipText: { fontFamily: fonts.dmSansSemiBold, fontSize: 13, color: colors.text2 },
   groupChipTextOn: { color: colors.accent },
   groupChipAdd: { borderStyle: 'dashed' },
-  groupChipAddText: { fontFamily: fonts.dmSansSemiBold, fontSize: 12, color: colors.text3 },
+  groupChipAddText: { fontFamily: fonts.dmSansSemiBold, fontSize: 13, color: colors.text3 },
 
 });

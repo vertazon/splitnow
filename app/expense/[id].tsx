@@ -84,12 +84,12 @@ const bubbleStyles = StyleSheet.create({
     width: 28, height: 28, borderRadius: 14,
     alignItems: 'center', justifyContent: 'center', flexShrink: 0,
   },
-  avatarText: { fontFamily: fonts.dmSansSemiBold, fontSize: 9, fontWeight: '700' },
+  avatarText: { fontFamily: fonts.dmSansSemiBold, fontSize: 11, fontWeight: '700' },
   bubble: { maxWidth: '72%', borderRadius: 16, paddingHorizontal: 12, paddingVertical: 9 },
   bubbleThem: { backgroundColor: colors.cardElevated, borderBottomLeftRadius: 4 },
   bubbleMe: { backgroundColor: colors.accent, borderBottomRightRadius: 4 },
   senderName: {
-    fontFamily: fonts.dmSansSemiBold, fontSize: 10, fontWeight: '700',
+    fontFamily: fonts.dmSansSemiBold, fontSize: 12, fontWeight: '700',
     color: colors.text2, marginBottom: 3,
   },
   messageText: {
@@ -97,7 +97,7 @@ const bubbleStyles = StyleSheet.create({
     color: colors.text, lineHeight: 18,
   },
   timestamp: {
-    fontFamily: fonts.dmSans, fontSize: 9,
+    fontFamily: fonts.dmSans, fontSize: 11,
     color: colors.text3, marginTop: 4, textAlign: 'right',
   },
 });
@@ -511,7 +511,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.dangerDim,
   },
   actionBtnText: {
-    fontFamily: fonts.dmSansSemiBold, fontSize: 12,
+    fontFamily: fonts.dmSansSemiBold, fontSize: 13,
     fontWeight: '600', color: colors.text2,
   },
   actionBtnTextDelete: { color: colors.danger },
@@ -540,7 +540,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10, paddingVertical: 4,
   },
   catPillText: {
-    fontFamily: fonts.dmSansSemiBold, fontSize: 11,
+    fontFamily: fonts.dmSansSemiBold, fontSize: 13,
     fontWeight: '600', color: colors.text2,
   },
 
@@ -553,20 +553,20 @@ const styles = StyleSheet.create({
   amountCol: { flex: 1, alignItems: 'center' },
   amountColDivider: { width: 1, backgroundColor: colors.border, marginVertical: 2 },
   amountColLabel: {
-    fontFamily: fonts.dmSansSemiBold, fontSize: 9, fontWeight: '700',
+    fontFamily: fonts.dmSansSemiBold, fontSize: 10, fontWeight: '700',
     letterSpacing: 1, textTransform: 'uppercase', color: colors.text3, marginBottom: 4,
   },
   amountColValue: {
     fontFamily: fonts.syne, fontSize: 28, fontWeight: '800',
     letterSpacing: -1, color: colors.text, marginBottom: 2,
   },
-  amountColSub: { fontFamily: fonts.dmSans, fontSize: 11, color: colors.text3 },
+  amountColSub: { fontFamily: fonts.dmSans, fontSize: 13, color: colors.text3 },
   netStrip: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     gap: 6, paddingVertical: 11, borderTopWidth: 1, borderTopColor: colors.border,
   },
   netStripSign: { fontFamily: fonts.syne, fontSize: 16, fontWeight: '800' },
-  netStripLabel: { fontFamily: fonts.dmSans, fontSize: 12 },
+  netStripLabel: { fontFamily: fonts.dmSans, fontSize: 13 },
 
   section: { marginBottom: 14 },
   sectionLabel: {
@@ -590,18 +590,18 @@ const styles = StyleSheet.create({
     fontFamily: fonts.dmSansSemiBold, fontSize: 13,
     fontWeight: '600', color: colors.text,
   },
-  memberSub: { fontFamily: fonts.dmSans, fontSize: 11, color: colors.text2, marginTop: 1 },
+  memberSub: { fontFamily: fonts.dmSans, fontSize: 13, color: colors.text2, marginTop: 1 },
   badge: { borderRadius: 10, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, flexShrink: 0 },
   badgeGreen: { backgroundColor: colors.accentDim, borderColor: colors.accentMid },
   badgeDefault: { backgroundColor: colors.cardElevated, borderColor: colors.border },
-  badgeText: { fontFamily: fonts.dmSansSemiBold, fontSize: 11, fontWeight: '600' },
+  badgeText: { fontFamily: fonts.dmSansSemiBold, fontSize: 12, fontWeight: '600' },
 
   splitRow: {
     flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: 14, paddingVertical: 11, gap: 10,
   },
   splitDivider: { height: 1, backgroundColor: colors.border, marginHorizontal: 14 },
-  payerTagText: { fontFamily: fonts.dmSans, fontSize: 11, color: colors.accent, marginTop: 1 },
+  payerTagText: { fontFamily: fonts.dmSans, fontSize: 13, color: colors.accent, marginTop: 1 },
   shareAmt: { fontFamily: fonts.syne, fontSize: 14, fontWeight: '800', flexShrink: 0 },
 
   noteText: { fontFamily: fonts.dmSans, fontSize: 13, color: colors.text, lineHeight: 20 },
@@ -617,13 +617,13 @@ const styles = StyleSheet.create({
     width: 24, height: 24, borderRadius: 12,
     alignItems: 'center', justifyContent: 'center', flexShrink: 0,
   },
-  entryMetaInitials: { fontFamily: fonts.dmSansSemiBold, fontSize: 8, fontWeight: '700' },
+  entryMetaInitials: { fontFamily: fonts.dmSansSemiBold, fontSize: 10, fontWeight: '700' },
   entryMetaText: { flex: 1 },
-  entryMetaLabel: { fontFamily: fonts.dmSansSemiBold, fontSize: 11, fontWeight: '600', color: colors.text2 },
-  entryMetaTime: { fontFamily: fonts.dmSans, fontSize: 10, color: colors.text3, marginTop: 1 },
+  entryMetaLabel: { fontFamily: fonts.dmSansSemiBold, fontSize: 13, fontWeight: '600', color: colors.text2 },
+  entryMetaTime: { fontFamily: fonts.dmSans, fontSize: 11, color: colors.text3, marginTop: 1 },
 
   emptyComments: {
-    fontFamily: fonts.dmSans, fontSize: 12, color: colors.text3,
+    fontFamily: fonts.dmSans, fontSize: 13, color: colors.text3,
     textAlign: 'center', paddingVertical: 20,
   },
   commentsList: { gap: 0 },

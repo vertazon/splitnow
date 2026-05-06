@@ -297,7 +297,7 @@ const styles = StyleSheet.create({
   },
   userUpi: {
     fontFamily: fonts.dmSans,
-    fontSize: 12,
+    fontSize: 13,
     color: colors.text3,
     marginTop: 1,
   },
@@ -367,7 +367,7 @@ const styles = StyleSheet.create({
   },
   menuSub: {
     fontFamily: fonts.dmSans,
-    fontSize: 11,
+    fontSize: 13,
     color: colors.text3,
   },
 });

@@ -102,7 +102,7 @@ const miniStyles = StyleSheet.create({
   },
   text: {
     fontFamily: fonts.dmSansSemiBold,
-    fontSize: 7,
+    fontSize: 9,
     fontWeight: '700',
   },
 });
@@ -260,8 +260,8 @@ export const rowStyles = StyleSheet.create({
     marginBottom: 3,
   },
   meta: { flexDirection: 'row', alignItems: 'center' },
-  date: { fontFamily: fonts.dmSans, fontSize: 11, color: colors.text2 },
-  catLabel: { fontFamily: fonts.dmSans, fontSize: 11, color: colors.text3 },
+  date: { fontFamily: fonts.dmSans, fontSize: 13, color: colors.text2 },
+  catLabel: { fontFamily: fonts.dmSans, fontSize: 13, color: colors.text3 },
   splitMeta: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -270,7 +270,7 @@ export const rowStyles = StyleSheet.create({
   },
   payerText: {
     fontFamily: fonts.dmSans,
-    fontSize: 11,
+    fontSize: 13,
     color: colors.text3,
     flexShrink: 1,
   },
@@ -281,7 +281,7 @@ export const rowStyles = StyleSheet.create({
     fontWeight: '800',
     marginBottom: 2,
   },
-  netLabel: { fontFamily: fonts.dmSans, fontSize: 10, fontWeight: '400' },
+  netLabel: { fontFamily: fonts.dmSans, fontSize: 12, fontWeight: '400' },
   chevron: { fontSize: 18, color: colors.text3, flexShrink: 0, marginLeft: -4 },
   groupBadge: {
     flexDirection: 'row', alignItems: 'center',

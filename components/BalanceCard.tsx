@@ -72,7 +72,7 @@ const styles = StyleSheet.create({
   },
   sub: {
     fontFamily: fonts.dmSans,
-    fontSize: 11,
+    fontSize: 13,
     color: colors.text2,
     marginTop: 1,
   },
@@ -96,7 +96,7 @@ const styles = StyleSheet.create({
   },
   payBtnText: {
     fontFamily: fonts.dmSansSemiBold,
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '700',
     color: colors.accent,
   },

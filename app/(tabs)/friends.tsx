@@ -108,9 +108,9 @@ const inviteStyles = StyleSheet.create({
   },
   hint: {
     fontFamily: fonts.dmSans,
-    fontSize: 11,
+    fontSize: 13,
     color: colors.text2,
-    lineHeight: 16,
+    lineHeight: 18,
   },
 });
 
@@ -182,7 +182,7 @@ const addStyles = StyleSheet.create({
   },
   sub: {
     fontFamily: fonts.dmSans,
-    fontSize: 12,
+    fontSize: 13,
     color: colors.text3,
     marginBottom: 14,
   },
@@ -311,13 +311,13 @@ const rowStyles = StyleSheet.create({
   },
   upi: {
     fontFamily: fonts.dmSans,
-    fontSize: 11,
+    fontSize: 13,
     color: colors.text2,
     flexShrink: 1,
   },
   upiMissing: {
     fontFamily: fonts.dmSans,
-    fontSize: 11,
+    fontSize: 13,
     color: colors.text3,
   },
   removeBtn: {
@@ -487,7 +487,7 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontFamily: fonts.dmSans,
-    fontSize: 12,
+    fontSize: 13,
     color: colors.text2,
   },
   sectionLabel: {

@@ -321,7 +321,7 @@ const styles = StyleSheet.create({
   },
   filterLabel: {
     fontFamily: fonts.dmSansSemiBold,
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '600',
     color: colors.text2,
   },
@@ -337,7 +337,7 @@ const styles = StyleSheet.create({
   },
   summaryText: {
     fontFamily: fonts.dmSans,
-    fontSize: 12,
+    fontSize: 13,
     color: colors.text2,
   },
   summaryNet: {
@@ -387,7 +387,7 @@ const styles = StyleSheet.create({
   },
   limitNote: {
     fontFamily: fonts.dmSans,
-    fontSize: 11,
+    fontSize: 13,
     color: colors.text3,
   },
 });

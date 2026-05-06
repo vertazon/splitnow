@@ -320,7 +320,7 @@ const styles = StyleSheet.create({
   },
   totalSub: {
     fontFamily: fonts.dmSans,
-    fontSize: 12,
+    fontSize: 13,
     color: colors.text2,
   },
   ctaWrap: {
@@ -399,7 +399,7 @@ const styles = StyleSheet.create({
   },
   settleVpa: {
     fontFamily: fonts.dmSans,
-    fontSize: 11,
+    fontSize: 13,
     color: colors.text2,
     marginTop: 1,
   },
@@ -422,7 +422,7 @@ const styles = StyleSheet.create({
   },
   upiBtnText: {
     fontFamily: fonts.dmSansSemiBold,
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '700',
     color: colors.accent,
   },

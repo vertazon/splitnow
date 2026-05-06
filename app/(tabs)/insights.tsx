@@ -216,7 +216,7 @@ const trendStyles = StyleSheet.create({
   },
   colLabel: {
     fontFamily: fonts.dmSans,
-    fontSize: 11,
+    fontSize: 13,
     color: colors.text2,
     textAlign: 'center',
   },
@@ -616,7 +616,7 @@ const styles = StyleSheet.create({
     borderColor: colors.borderEmphasis,
   },
   chipOn: { backgroundColor: colors.accentDim, borderColor: colors.accentMid },
-  chipText: { fontFamily: fonts.dmSansSemiBold, fontSize: 12, color: colors.text2 },
+  chipText: { fontFamily: fonts.dmSansSemiBold, fontSize: 13, color: colors.text2 },
   chipTextOn: { color: colors.accent },
 
   // ── Stats layout ──
@@ -661,7 +661,7 @@ const styles = StyleSheet.create({
   },
   heroBadgeText: {
     fontFamily: fonts.dmSansSemiBold,
-    fontSize: 11,
+    fontSize: 13,
     fontWeight: '600',
     color: colors.accent,
   },
@@ -692,7 +692,7 @@ const styles = StyleSheet.create({
   },
   statSub: {
     fontFamily: fonts.dmSans,
-    fontSize: 10,
+    fontSize: 12,
     color: colors.text2,
     marginTop: 4,
   },
@@ -715,7 +715,7 @@ const styles = StyleSheet.create({
   },
   mostWithCount: {
     fontFamily: fonts.dmSans,
-    fontSize: 11,
+    fontSize: 13,
     color: colors.text2,
     marginTop: 3,
   },
@@ -728,7 +728,7 @@ const styles = StyleSheet.create({
   },
   trendDelta: {
     fontFamily: fonts.dmSansSemiBold,
-    fontSize: 11,
+    fontSize: 13,
     fontWeight: '600',
   },
   trendUp: { color: colors.danger },
@@ -770,13 +770,13 @@ const styles = StyleSheet.create({
   },
   catBarLabel: {
     fontFamily: fonts.dmSansSemiBold,
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '600',
     color: colors.text,
   },
   catBarAmount: {
     fontFamily: fonts.syne,
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '800',
     color: colors.text,
   },
