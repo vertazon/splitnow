@@ -19,7 +19,8 @@
       "Bash(grep -nB 2 -A 12 \"class SupabaseClient\\\\|interface SupabaseClient\" node_modules/@supabase/supabase-js/dist/module/SupabaseClient.d.ts)",
       "Bash(grep -nB 1 -A 30 \"class SupabaseClient\\\\b\" node_modules/@supabase/supabase-js/dist/index.d.mts)",
       "Bash(tee /tmp/cur4.txt)",
-      "Bash(del \"D:\\\\SplitNow\\\\components\\\\ProfileMenu.tsx\")"
+      "Bash(del \"D:\\\\SplitNow\\\\components\\\\ProfileMenu.tsx\")",
+      "Bash(del \"D:\\\\SplitNow\\\\app\\\\\\(tabs\\)\\\\settle.tsx\")"
     ]
   }
 }

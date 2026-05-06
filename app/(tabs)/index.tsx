@@ -323,7 +323,7 @@ export default function HomeScreen() {
         {/* Recent Activity */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionLabel, { marginBottom: 0 }]}>RECENT ACTIVITY</Text>
+            <Text style={[styles.sectionLabel, { marginBottom: 0 }]}>RECENT EXPENSES</Text>
             {expenses.length > 5 && (
               <TouchableOpacity onPress={() => router.push('/expenses' as never)} activeOpacity={0.7}>
                 <Text style={styles.seeAll}>See all ({expenses.length}) →</Text>

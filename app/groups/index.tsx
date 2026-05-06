@@ -60,24 +60,17 @@ function GroupCard({ group, onPress }: { group: GroupWithStats; onPress: () => v
           <Text style={styles.groupName}>{group.name}</Text>
           <View style={styles.groupMeta}>
             <AvatarStack members={group.members} />
-            <Text style={styles.groupMemberCount}>{group.member_count} members</Text>
+            <Text style={styles.groupMemberCount}>{group.member_count} {group.member_count === 1 ? 'member' : 'members'}</Text>
           </View>
         </View>
-        <View style={styles.groupBalance}>
-          {hasBalance ? (
-            <>
-              <Text style={[styles.groupBalanceAmt, isOwed ? styles.accent : styles.danger]}>
-                {isOwed ? '+' : '−'}{formatAmount(Math.abs(group.net_balance))}
-              </Text>
-              <Text style={styles.groupBalanceLabel}>{isOwed ? 'owed to you' : 'you owe'}</Text>
-            </>
-          ) : (
-            <>
-              <Text style={styles.groupBalanceSettled}>Settled</Text>
-              <Text style={styles.groupBalanceLabel}>✓</Text>
-            </>
-          )}
-        </View>
+        {hasBalance && (
+          <View style={styles.groupBalance}>
+            <Text style={[styles.groupBalanceAmt, isOwed ? styles.accent : styles.danger]}>
+              {isOwed ? '+' : '−'}{formatAmount(Math.abs(group.net_balance))}
+            </Text>
+            <Text style={styles.groupBalanceLabel}>{isOwed ? 'owed to you' : 'you owe'}</Text>
+          </View>
+        )}
       </View>
     </TouchableOpacity>
   );
@@ -269,7 +262,6 @@ const styles = StyleSheet.create({
   groupBalance: { alignItems: 'flex-end' },
   groupBalanceAmt: { fontFamily: fonts.syne, fontSize: 15, letterSpacing: -0.5 },
   groupBalanceLabel: { fontFamily: fonts.dmSans, fontSize: 10, color: colors.text3, marginTop: 2 },
-  groupBalanceSettled: { fontFamily: fonts.syne, fontSize: 14, color: colors.text3 },
   accent: { color: colors.accent },
   danger: { color: colors.danger },
 

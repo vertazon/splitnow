@@ -6,7 +6,6 @@ import {
   Platform,
   TouchableOpacity,
   ScrollView,
-  Share,
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -55,8 +54,15 @@ function MenuItem({
 }) {
   return (
     <TouchableOpacity style={styles.menuItem} onPress={onPress} activeOpacity={0.65}>
-      <View style={[styles.menuIconWrap, danger && styles.menuIconWrapDanger]}>
-        <Ionicons name={icon} size={18} color={danger ? colors.danger : colors.text2} />
+      <View style={[
+        styles.menuIconWrap,
+        danger && styles.menuIconWrapDanger,
+      ]}>
+        <Ionicons
+          name={icon}
+          size={18}
+          color={danger ? colors.danger : colors.text2}
+        />
       </View>
       <View style={styles.menuText}>
         <Text style={[styles.menuLabel, danger && styles.menuLabelDanger]}>{label}</Text>
@@ -86,22 +92,7 @@ export default function AccountScreen() {
   const avatarColor = (currentUser?.avatar_color ?? 'green') as AvatarColor;
   const av          = avatarColors[avatarColor] ?? avatarColors.green;
   const initials    = initialsFromName(currentUser?.name);
-
-  const handleInvite = useCallback(async () => {
-    const code = currentUser?.invite_code;
-    if (!code) return;
-    const formatted = `${code.slice(0, 4).toUpperCase()} ${code.slice(4).toUpperCase()}`;
-    await Share.share({
-      title: 'Add me on SplitNow',
-      message:
-        `Hey! I use SplitNow to split expenses.\n\n` +
-        `Add me as a friend:\n\n` +
-        `1. Open SplitNow\n` +
-        `2. Go to the Friends tab\n` +
-        `3. Tap "Add a friend" and enter my code:\n\n` +
-        `   ${formatted}\n`,
-    });
-  }, [currentUser?.invite_code]);
+  const hasUpi      = !!currentUser?.upi_id;
 
   const handleSignOut = useCallback(() => {
     Alert.alert(
@@ -130,7 +121,7 @@ export default function AccountScreen() {
         >
           <Ionicons name="chevron-back" size={20} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Profile</Text>
+        <Text style={styles.headerTitle}>Account</Text>
         <View style={styles.headerSpacer} />
       </View>
 
@@ -139,8 +130,8 @@ export default function AccountScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        {/* ── User card ── */}
-        <View style={styles.userCard}>
+        {/* ── Profile card ── */}
+        <View style={styles.profileCard}>
           <View style={[styles.avatar, { backgroundColor: av.bg }]}>
             <Text style={[styles.avatarText, { color: av.text }]}>{initials}</Text>
           </View>
@@ -149,10 +140,21 @@ export default function AccountScreen() {
             {currentUser?.phone ? (
               <Text style={styles.userPhone}>{formatPhone(currentUser.phone)}</Text>
             ) : null}
-            {currentUser?.upi_id ? (
-              <Text style={styles.userUpi}>{currentUser.upi_id}</Text>
-            ) : null}
+            <View style={styles.upiRow}>
+              <View style={[styles.upiDot, hasUpi && styles.upiDotActive]} />
+              <Text style={[styles.upiText, hasUpi && styles.upiTextActive]}>
+                {hasUpi ? currentUser!.upi_id! : 'No UPI ID · tap Edit to add'}
+              </Text>
+            </View>
           </View>
+          <TouchableOpacity
+            style={styles.editBtn}
+            onPress={() => router.push('/profile')}
+            activeOpacity={0.7}
+            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+          >
+            <Ionicons name="pencil-outline" size={15} color={colors.accent} />
+          </TouchableOpacity>
         </View>
 
         {/* ── Account section ── */}
@@ -173,27 +175,15 @@ export default function AccountScreen() {
           />
           <Divider />
           <MenuItem
-            icon="settings-outline"
-            label="Settings"
-            sub="Coming soon"
-            onPress={() => {}}
-            hideCaret
-          />
-        </View>
-
-        {/* ── General section ── */}
-        <SectionLabel label="GENERAL" />
-        <View style={styles.menuCard}>
-          <MenuItem
             icon="person-add-outline"
-            label="Invite a Friend"
-            sub="Share your invite code"
-            onPress={handleInvite}
+            label="Friends"
+            sub="Add & manage friends"
+            onPress={() => router.push('/(tabs)/friends' as never)}
           />
         </View>
 
         {/* ── Sign out ── */}
-        <View style={styles.menuCard}>
+        <View style={[styles.menuCard, styles.menuCardLast]}>
           <MenuItem
             icon="log-out-outline"
             label="Sign out"
@@ -242,9 +232,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: colors.text,
   },
-  headerSpacer: {
-    width: 36,
-  },
+  headerSpacer: { width: 36 },
 
   // Scroll
   scroll: { flex: 1 },
@@ -252,11 +240,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 22,
     paddingTop: 24,
     paddingBottom: Platform.OS === 'ios' ? 32 : 24,
-    gap: 0,
   },
 
-  // User card
-  userCard: {
+  // Profile card
+  profileCard: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.card,
@@ -266,6 +253,17 @@ const styles = StyleSheet.create({
     padding: 18,
     gap: 14,
     marginBottom: 28,
+  },
+  editBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: colors.accentDim,
+    borderWidth: 1,
+    borderColor: colors.accentMid,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
   },
   avatar: {
     width: 58,
@@ -295,11 +293,28 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.text2,
   },
-  userUpi: {
+  upiRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginTop: 1,
+  },
+  upiDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.text3,
+  },
+  upiDotActive: {
+    backgroundColor: colors.accent,
+  },
+  upiText: {
     fontFamily: fonts.dmSans,
     fontSize: 13,
     color: colors.text3,
-    marginTop: 1,
+  },
+  upiTextActive: {
+    color: colors.text2,
   },
 
   // Section label
@@ -322,6 +337,9 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     overflow: 'hidden',
     marginBottom: 16,
+  },
+  menuCardLast: {
+    marginBottom: 0,
   },
   divider: {
     height: 1,
@@ -352,6 +370,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.dangerDim,
     borderColor: 'rgba(255,89,89,0.2)',
   },
+
   menuText: {
     flex: 1,
     gap: 2,

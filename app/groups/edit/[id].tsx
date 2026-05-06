@@ -25,6 +25,15 @@ import { formatAmount } from '@/constants/amountUtils';
 
 const EMOJIS = ['🏠', '🏕️', '🍺', '✈️', '🎮', '👥'];
 
+const EMOJI_TYPE_MAP: Record<string, 'flat' | 'trip' | 'custom'> = {
+  '🏠': 'flat',
+  '✈️': 'trip',
+};
+
+function emojiToGroupType(e: string): 'flat' | 'trip' | 'custom' {
+  return EMOJI_TYPE_MAP[e] ?? 'custom';
+}
+
 export default function EditGroupScreen() {
   const router = useRouter();
   const { id: groupId } = useLocalSearchParams<{ id: string }>();
@@ -67,7 +76,8 @@ export default function EditGroupScreen() {
       return;
     }
     try {
-      await updateGroup.mutateAsync({ groupId: groupId as string, name: name.trim(), cover_emoji: emoji });
+      const group_type = group?.group_type === 'personal' ? 'personal' : emojiToGroupType(emoji);
+      await updateGroup.mutateAsync({ groupId: groupId as string, name: name.trim(), cover_emoji: emoji, group_type });
       showToast('Group updated ✓');
       setTimeout(() => router.back(), 400);
     } catch (e: any) {

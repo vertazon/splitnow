@@ -5,6 +5,22 @@ import { DEV_USER_ID } from '@/lib/auth';
 import { qk } from '@/lib/queryKeys';
 import type { Settlement } from '@/types/database';
 
+export function useSettlement(id: string | null | undefined) {
+  return useQuery<Settlement>({
+    queryKey: qk.settlements.detail(id),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('settlements')
+        .select('*')
+        .eq('id', id!)
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!id,
+  });
+}
+
 export function useSettlements(groupId: string) {
   return useQuery<Settlement[]>({
     queryKey: qk.settlements.list(groupId),
@@ -54,6 +70,46 @@ export function useSettleUp() {
     onSuccess: (_d, vars) => {
       qc.invalidateQueries({ queryKey: qk.balances.all });
       qc.invalidateQueries({ queryKey: qk.settlements.list(vars.groupId) });
+    },
+  });
+}
+
+export function useDeleteSettlement() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id }: { id: string; groupId: string }) => {
+      const { error } = await supabase.from('settlements').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: qk.balances.all });
+      qc.invalidateQueries({ queryKey: qk.settlements.list(vars.groupId) });
+      qc.removeQueries({ queryKey: qk.settlements.detail(vars.id) });
+    },
+  });
+}
+
+export interface UpdateSettlementInput {
+  id: string;
+  groupId: string;
+  amount: number;
+  upiRef?: string;
+}
+
+export function useUpdateSettlement() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, amount, upiRef }: UpdateSettlementInput) => {
+      const { error } = await supabase
+        .from('settlements')
+        .update({ amount, upi_ref: upiRef ?? null })
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: qk.balances.all });
+      qc.invalidateQueries({ queryKey: qk.settlements.list(vars.groupId) });
+      qc.invalidateQueries({ queryKey: qk.settlements.detail(vars.id) });
     },
   });
 }

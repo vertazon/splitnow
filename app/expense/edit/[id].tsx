@@ -15,7 +15,7 @@ import { CategoryChip } from '@/components/CategoryChip';
 import { PersonChip } from '@/components/PersonChip';
 import { ToastNotification } from '@/components/ToastNotification';
 import { CategoryPickerModal } from '@/components/CategoryPickerModal';
-import { sanitizeAmountInput, isValidAmount, parseAmount } from '@/constants/amountUtils';
+import { sanitizeAmountInput, isValidAmount, parseAmount, formatAmount, formatDisplayName } from '@/constants/amountUtils';
 import { initialsFromName } from '@/constants/dateFormat';
 import { DEV_USER_ID } from '@/lib/auth';
 import { useGroupStore } from '@/store/useGroupStore';
@@ -27,10 +27,10 @@ import type { AvatarColor } from '@/types/database';
 const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
 
 function amountFontSize(len: number) {
-  if (len > 8) return 26;
-  if (len > 6) return 32;
-  if (len > 4) return 40;
-  return 48;
+  if (len > 8) return 20;
+  if (len > 6) return 24;
+  if (len > 4) return 28;
+  return 34;
 }
 
 export default function EditExpenseScreen() {
@@ -38,55 +38,55 @@ export default function EditExpenseScreen() {
   const router = useRouter();
   const groupId = useGroupStore(s => s.currentGroupId);
   const currentUserId = useUserStore(s => s.currentUserId) ?? DEV_USER_ID;
+  const currentUser = useUserStore(s => s.currentUser);
+  const currentUserInitials = currentUser?.name ? initialsFromName(currentUser.name) : 'ME';
+  const currentAvatarColor = (currentUser?.avatar_color ?? 'green') as AvatarColor;
+
   const { data: expense, isLoading } = useExpense(id);
   const { data: members = [] } = useMembers(expense?.group_id ?? groupId);
   const updateExpense = useUpdateExpense();
   const { width } = useWindowDimensions();
   const chipWidth = (width - 44 - 16) / 3;
 
-  const splitPeople = members.filter(m => m.id !== currentUserId);
-
-  // ── All hooks unconditional (no early return before them) ──
-  const [amount, setAmount] = useState('');
-  const [title, setTitle] = useState('');
+  // ── Form state ──
+  const [amount, setAmount]               = useState('');
+  const [title, setTitle]                 = useState('');
   const [selectedCatId, setSelectedCatId] = useState(categories[0].id);
   const [selectedPeople, setSelectedPeople] = useState<Set<string>>(new Set());
+  const [paidBy, setPaidBy]               = useState<string>(currentUserId);
   const [catPickerOpen, setCatPickerOpen] = useState(false);
-  const [amountError, setAmountError] = useState('');
-  const [titleError, setTitleError] = useState('');
-  const [toast, setToast] = useState('');
-  const [toastVisible, setToastVisible] = useState(false);
+  const [amountError, setAmountError]     = useState('');
+  const [titleError, setTitleError]       = useState('');
+  const [toast, setToast]                 = useState('');
+  const [toastVisible, setToastVisible]   = useState(false);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const ctaScale = useSharedValue(1);
 
   // Hydrate form from the loaded expense, exactly once
   const hydrated = useRef(false);
   useEffect(() => {
-    if (hydrated.current) return;
-    if (!expense) return;
+    if (hydrated.current || !expense) return;
     setAmount(String(expense.amount));
     setTitle(expense.title ?? '');
     setSelectedCatId(expense.category ?? categories[0].id);
-    setSelectedPeople(new Set(
-      (expense.splits ?? [])
-        .map(s => s.user_id)
-        .filter(uid => uid !== currentUserId)
-    ));
+    setPaidBy(expense.paid_by ?? currentUserId);
+    // Include ALL split members — no exclusions
+    setSelectedPeople(new Set((expense.splits ?? []).map(s => s.user_id)));
     hydrated.current = true;
   }, [expense, currentUserId]);
 
   const normalizedAmount = amount.endsWith('.') ? amount.slice(0, -1) : amount;
   const parsedAmount = parseAmount(normalizedAmount);
   const fontSize = amountFontSize(amount.length);
-  const splitCount = selectedPeople.size + 1;
-  const each = parsedAmount > 0 ? parseFloat((parsedAmount / splitCount).toFixed(2)) : 0;
+  const splitCount = selectedPeople.size;
+  const each = parsedAmount > 0 && splitCount > 0
+    ? parseFloat((parsedAmount / splitCount).toFixed(2))
+    : 0;
   const splitText = each > 0
-    ? `Each pays ₹${each.toLocaleString('en-IN')} (${splitCount} ${splitCount === 1 ? 'person' : 'people'})`
+    ? `Each pays ${formatAmount(each)} (${splitCount} ${splitCount === 1 ? 'person' : 'people'})`
     : `Split with ${splitCount} ${splitCount === 1 ? 'person' : 'people'}`;
 
-  const ctaStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: ctaScale.value }],
-  }));
+  const ctaStyle = useAnimatedStyle(() => ({ transform: [{ scale: ctaScale.value }] }));
 
   const showToast = useCallback((msg: string) => {
     setToast(msg);
@@ -115,16 +115,16 @@ export default function EditExpenseScreen() {
       setTitleError('Title is required');
       hasError = true;
     }
+    if (selectedPeople.size === 0) {
+      showToast('Select at least one person to split with');
+      return;
+    }
     if (hasError) return;
+
     ctaScale.value = withSequence(
       withTiming(0.97, { duration: 100 }),
       withTiming(1,    { duration: 120 })
     );
-
-    const splitWith = [
-      expense.paid_by ?? currentUserId,
-      ...Array.from(selectedPeople).filter(id => id !== expense.paid_by),
-    ];
 
     updateExpense.mutate(
       {
@@ -133,13 +133,12 @@ export default function EditExpenseScreen() {
         title: title.trim(),
         amount: parsedAmount,
         category: selectedCatId,
-        splitWith,
-        paidBy: expense.paid_by ?? currentUserId,
-        note: expense.note,
+        splitWith: Array.from(selectedPeople),
+        paidBy,
       },
       {
         onSuccess: () => {
-          showToast('Changes saved');
+          showToast('Changes saved ✓');
           setTimeout(() => router.back(), 600);
         },
         onError: (err: any) => {
@@ -147,14 +146,14 @@ export default function EditExpenseScreen() {
         },
       }
     );
-  }, [expense, normalizedAmount, parsedAmount, title, selectedCatId, selectedPeople, currentUserId, updateExpense, showToast, router, ctaScale]);
+  }, [expense, normalizedAmount, parsedAmount, title, selectedCatId, selectedPeople, paidBy, updateExpense, showToast, router, ctaScale]);
 
-  // ── Loading / not-found early returns AFTER hooks ──
+  // ── Loading / not-found ──
   if (isLoading && !expense) {
     return (
       <SafeAreaView style={styles.safe} edges={['top']}>
-        <View style={[styles.notFound, { justifyContent: 'center' }]}>
-          <ActivityIndicator color={colors.text2} />
+        <View style={styles.centered}>
+          <ActivityIndicator color={colors.accent} />
         </View>
       </SafeAreaView>
     );
@@ -163,10 +162,12 @@ export default function EditExpenseScreen() {
   if (!expense) {
     return (
       <SafeAreaView style={styles.safe} edges={['top']}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Text style={styles.backText}>← Back</Text>
-        </TouchableOpacity>
-        <Text style={styles.notFound}>Expense not found</Text>
+        <View style={styles.centered}>
+          <Text style={styles.notFoundText}>Expense not found</Text>
+          <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7}>
+            <Text style={styles.notFoundBack}>← Go back</Text>
+          </TouchableOpacity>
+        </View>
       </SafeAreaView>
     );
   }
@@ -181,11 +182,11 @@ export default function EditExpenseScreen() {
       >
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-            <Text style={styles.backText}>← Back</Text>
+          <TouchableOpacity style={styles.backBtn} onPress={() => router.back()} activeOpacity={0.7}>
+            <Text style={styles.backIcon}>‹</Text>
           </TouchableOpacity>
           <Text style={styles.screenTitle}>Edit Expense</Text>
-          <View style={{ width: 60 }} />
+          <View style={styles.headerSpacer} />
         </View>
 
         {/* Amount */}
@@ -212,9 +213,9 @@ export default function EditExpenseScreen() {
         {/* Title */}
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>TITLE *</Text>
-          <View style={[styles.noteBox, !!titleError && styles.inputError]}>
+          <View style={[styles.inputBox, !!titleError && styles.inputError]}>
             <TextInput
-              style={styles.noteInput}
+              style={styles.inputText}
               value={title}
               onChangeText={t => { setTitle(t); if (titleError) setTitleError(''); }}
               placeholder="What's this for?"
@@ -227,11 +228,12 @@ export default function EditExpenseScreen() {
           {!!titleError && <Text style={styles.fieldError}>{titleError}</Text>}
         </View>
 
+
         {/* Category */}
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>CATEGORY</Text>
           <View style={styles.catGrid}>
-            {categories.slice(0, 9).map((cat) => (
+            {categories.slice(0, 8).map((cat) => (
               <CategoryChip
                 key={cat.id}
                 category={cat}
@@ -241,7 +243,7 @@ export default function EditExpenseScreen() {
               />
             ))}
             {(() => {
-              const isMoreSel = !categories.slice(0, 9).find(c => c.id === selectedCatId);
+              const isMoreSel = !categories.slice(0, 8).find(c => c.id === selectedCatId);
               const moreCat = isMoreSel ? categories.find(c => c.id === selectedCatId) : null;
               return (
                 <TouchableOpacity
@@ -257,22 +259,46 @@ export default function EditExpenseScreen() {
           </View>
         </View>
 
-        {/* Split with */}
+        {/* Paid By */}
         <View style={styles.section}>
-          <Text style={styles.sectionLabel}>SPLIT WITH</Text>
+          <Text style={styles.sectionLabel}>PAID BY</Text>
           <View style={styles.peopleRow}>
-            {splitPeople.map(m => (
+            {members.map(m => (
               <PersonChip
                 key={m.id}
-                label={m.name ?? '?'}
-                selected={selectedPeople.has(m.id)}
-                onPress={() => togglePerson(m.id)}
-                initials={initialsFromName(m.name)}
+                label={m.id === currentUserId ? 'You' : formatDisplayName(m.name)}
+                selected={paidBy === m.id}
+                onPress={() => setPaidBy(m.id)}
+                initials={m.id === currentUserId ? currentUserInitials : initialsFromName(m.name)}
                 avatarColor={(m.avatar_color ?? 'green') as AvatarColor}
               />
             ))}
           </View>
-          <Text style={styles.splitCalc}>{splitText}</Text>
+        </View>
+
+        {/* Split With */}
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>SPLIT WITH</Text>
+          <View style={styles.peopleRow}>
+            {members.map(m => (
+              <PersonChip
+                key={m.id}
+                label={m.id === currentUserId ? 'You' : formatDisplayName(m.name)}
+                selected={selectedPeople.has(m.id)}
+                onPress={() => togglePerson(m.id)}
+                initials={m.id === currentUserId ? currentUserInitials : initialsFromName(m.name)}
+                avatarColor={(m.avatar_color ?? 'green') as AvatarColor}
+              />
+            ))}
+          </View>
+          <View style={styles.splitCalcRow}>
+            <Text style={styles.splitCalc}>{splitText}</Text>
+            {selectedPeople.size > 0 && each > 0 && (
+              <View style={styles.eachBadge}>
+                <Text style={styles.eachBadgeText}>{formatAmount(each)} each</Text>
+              </View>
+            )}
+          </View>
         </View>
 
         {/* Save CTA */}
@@ -307,25 +333,37 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingBottom: Platform.OS === 'ios' ? 110 : 90,
   },
-  notFound: {
-    fontFamily: fonts.dmSans, fontSize: 14, color: colors.text2,
-    textAlign: 'center', marginTop: 60, paddingHorizontal: 22,
+  centered: {
+    flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12,
   },
+  notFoundText: {
+    fontFamily: fonts.syne, fontSize: 16, fontWeight: '800', color: colors.text,
+  },
+  notFoundBack: {
+    fontFamily: fonts.dmSansSemiBold, fontSize: 13, color: colors.accent,
+  },
+
+  // Header
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 28,
+    marginBottom: 24,
   },
-  backBtn: { paddingVertical: 6, paddingRight: 12 },
-  backText: {
-    fontFamily: fonts.dmSansSemiBold, fontSize: 14,
-    fontWeight: '600', color: colors.accent,
+  backBtn: {
+    width: 36, height: 36, borderRadius: 12,
+    backgroundColor: colors.cardElevated,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  backIcon: {
+    fontSize: 22, color: colors.text, lineHeight: 26, marginTop: -2,
   },
   screenTitle: {
-    fontFamily: fonts.syne, fontSize: 17,
-    fontWeight: '800', color: colors.text,
+    fontFamily: fonts.syne, fontSize: 18, fontWeight: '800', color: colors.text,
   },
+  headerSpacer: { width: 36 },
+
+  // Amount
   amountSection: { alignItems: 'center', marginBottom: 22 },
   sectionLabel: {
     fontFamily: fonts.dmSansSemiBold, fontSize: 10, fontWeight: '700',
@@ -339,29 +377,37 @@ const styles = StyleSheet.create({
     gap: 2, alignSelf: 'stretch',
   },
   rupee: {
-    fontFamily: fonts.syne, fontWeight: '800',
-    color: colors.text2, flexShrink: 0,
+    fontFamily: fonts.syne, fontWeight: '800', color: colors.text2, flexShrink: 0,
   },
   amountInput: {
     fontFamily: fonts.syne, fontWeight: '800', color: colors.text,
     flex: 1, padding: 0, margin: 0, textAlign: 'center', minWidth: 0,
   },
+
+  // Text inputs
   section: { marginBottom: 20 },
-  noteBox: {
+  inputBox: {
     backgroundColor: colors.cardElevated,
     borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.11)',
     borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12,
   },
-  noteInput: {
+  inputText: {
     fontFamily: fonts.dmSansSemiBold, fontSize: 14,
     fontWeight: '500', color: colors.text, padding: 0, margin: 0,
   },
+  inputError: { borderColor: colors.danger },
+  fieldError: {
+    fontFamily: fonts.dmSans, fontSize: 11, color: colors.danger,
+    marginTop: 6, paddingLeft: 2,
+  },
+
+  // Category
+  catGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   moreCatChip: {
     alignItems: 'center', justifyContent: 'center',
     paddingHorizontal: 8, paddingVertical: 7,
     borderRadius: 14, backgroundColor: colors.cardElevated,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.11)',
-    minHeight: 36,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.11)', minHeight: 36,
   },
   moreCatChipSelected: { backgroundColor: colors.accentDim, borderColor: colors.accentMid },
   moreCatText: {
@@ -369,17 +415,25 @@ const styles = StyleSheet.create({
     fontWeight: '600', color: colors.text2, textAlign: 'center',
   },
   moreCatTextSelected: { color: colors.accent },
-  fieldError: {
-    fontFamily: fonts.dmSans, fontSize: 11, color: colors.danger,
-    marginTop: 6, paddingLeft: 2,
-  },
-  inputError: { borderColor: colors.danger },
-  catGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+
+  // People
   peopleRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  splitCalc: {
-    fontFamily: fonts.dmSansMedium, fontSize: 12,
-    fontWeight: '500', color: colors.text2, marginTop: 10,
+  splitCalcRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10,
   },
+  splitCalc: {
+    fontFamily: fonts.dmSansSemiBold, fontSize: 12,
+    fontWeight: '500', color: colors.text2,
+  },
+  eachBadge: {
+    backgroundColor: colors.accentDim, borderWidth: 1, borderColor: colors.accentMid,
+    borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3,
+  },
+  eachBadgeText: {
+    fontFamily: fonts.dmSansSemiBold, fontSize: 11, color: colors.accent,
+  },
+
+  // CTA
   cta: {
     backgroundColor: colors.accent, borderRadius: 16, height: 52,
     alignItems: 'center', justifyContent: 'center',

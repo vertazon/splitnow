@@ -75,7 +75,7 @@ export default function TabLayout() {
           ),
         }}
       />
-      <Tabs.Screen name="settle" options={{ href: null }} />
+
       <Tabs.Screen name="explore" options={{ href: null }} />
     </Tabs>
   );

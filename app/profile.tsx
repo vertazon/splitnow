@@ -1,21 +1,21 @@
-import { useState, useCallback, useEffect } from 'react';
-import {
-  View, Text, TextInput, TouchableOpacity,
-  StyleSheet, KeyboardAvoidingView, Platform,
-  ScrollView, ActivityIndicator,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { colors, avatarColors } from '@/constants/colors';
+import { avatarColors, colors } from '@/constants/colors';
+import { initialsFromName } from '@/constants/dateFormat';
 import { fonts } from '@/constants/typography';
 import { saveProfile } from '@/hooks/useAuth';
 import { useUserStore } from '@/store/useUserStore';
-import { useGroupStore } from '@/store/useGroupStore';
-import { useBalances, useNetBalance } from '@/hooks/useBalances';
-import { initialsFromName } from '@/constants/dateFormat';
-import { formatAmount } from '@/constants/amountUtils';
 import type { AvatarColor } from '@/types/database';
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  KeyboardAvoidingView, Platform,
+  ScrollView,
+  StyleSheet,
+  Text, TextInput, TouchableOpacity,
+  View,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -49,10 +49,6 @@ const COLOR_OPTIONS: { id: AvatarColor; label: string }[] = [
 export default function ProfileScreen() {
   const router = useRouter();
   const currentUser = useUserStore(s => s.currentUser);
-  const groupId = useGroupStore(s => s.currentGroupId);
-
-  const { data: balances = [] } = useBalances(groupId);
-  const { net: netAmt } = useNetBalance(groupId);
 
   const [name, setName]               = useState(currentUser?.name ?? '');
   const [upiId, setUpiId]             = useState(currentUser?.upi_id ?? '');
@@ -135,29 +131,8 @@ export default function ProfileScreen() {
             </View>
           </View>
 
-          {/* ── Quick stats ── */}
-          <View style={styles.statsRow}>
-            <View style={styles.statBox}>
-              <Text style={[styles.statValue, netAmt >= 0 ? styles.accent : styles.danger]}>
-                {netAmt >= 0 ? '+' : '−'}{formatAmount(Math.abs(netAmt))}
-              </Text>
-              <Text style={styles.statLabel}>NET BALANCE</Text>
-            </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statBox}>
-              <Text style={styles.statValue}>{balances.length + 1}</Text>
-              <Text style={styles.statLabel}>GROUP SIZE</Text>
-            </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statBox}>
-              <Text style={styles.statValue}>{currentUser?.upi_id ? '✓' : '—'}</Text>
-              <Text style={styles.statLabel}>UPI SET</Text>
-            </View>
-          </View>
-
           {/* ── Edit section ── */}
           <View style={styles.section}>
-            <Text style={styles.sectionLabel}>EDIT PROFILE</Text>
 
             {/* Name */}
             <Text style={styles.fieldLabel}>YOUR NAME</Text>
@@ -272,7 +247,7 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     padding: 18,
     gap: 16,
-    marginBottom: 12,
+    marginBottom: 24,
   },
   avatarLarge: {
     width: 68, height: 68, borderRadius: 34,
@@ -284,28 +259,6 @@ const styles = StyleSheet.create({
   identityName: { fontFamily: fonts.syne, fontSize: 18, fontWeight: '800', color: colors.text },
   identityPhone: { fontFamily: fonts.dmSans, fontSize: 13, color: colors.text2 },
   identityMeta: { fontFamily: fonts.dmSans, fontSize: 11, color: colors.text3, marginTop: 2 },
-
-  // Quick stats
-  statsRow: {
-    flexDirection: 'row',
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 22,
-    paddingVertical: 16,
-    marginBottom: 20,
-  },
-  statBox: { flex: 1, alignItems: 'center', gap: 4 },
-  statDivider: { width: 1, backgroundColor: colors.border, marginVertical: 4 },
-  statValue: { fontFamily: fonts.syne, fontSize: 18, fontWeight: '800', color: colors.text },
-  statLabel: {
-    fontFamily: fonts.dmSansSemiBold,
-    fontSize: 9, fontWeight: '700',
-    letterSpacing: 0.8, textTransform: 'uppercase',
-    color: colors.text3,
-  },
-  accent: { color: colors.accent },
-  danger: { color: colors.danger },
 
   // Section
   section: { marginBottom: 20 },

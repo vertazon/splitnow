@@ -25,6 +25,7 @@ export const qk = {
   settlements: {
     all: ['settlements'] as const,
     list: (groupId: string | null | undefined) => ['settlements', groupId] as const,
+    detail: (id: string | null | undefined) => ['settlement', id] as const,
   },
   members: {
     all: ['members'] as const,

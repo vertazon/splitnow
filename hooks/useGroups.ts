@@ -224,10 +224,11 @@ export function useUpdateGroup() {
   const qc = useQueryClient();
 
   return useMutation({
-    mutationFn: async (input: { groupId: string; name?: string; cover_emoji?: string }) => {
+    mutationFn: async (input: { groupId: string; name?: string; cover_emoji?: string; group_type?: string }) => {
       const updates: Record<string, string> = {};
       if (input.name !== undefined) updates.name = input.name;
       if (input.cover_emoji !== undefined) updates.cover_emoji = input.cover_emoji;
+      if (input.group_type !== undefined) updates.group_type = input.group_type;
 
       const { error } = await supabase
         .from('groups')

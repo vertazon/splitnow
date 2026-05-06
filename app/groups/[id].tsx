@@ -1,50 +1,51 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  TextInput,
-  ActivityIndicator,
-  Platform,
-  Modal,
-  KeyboardAvoidingView,
-  Pressable,
-  useWindowDimensions,
-} from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withTiming,
-  withSequence,
-  Easing,
-} from 'react-native-reanimated';
-import { colors, avatarColors } from '@/constants/colors';
-import { fonts } from '@/constants/typography';
+import type { MemberLite } from '@/components/ActivityRow';
+import { ActivityRow, SettlementRow } from '@/components/ActivityRow';
+import { BalanceRow } from '@/components/BalanceCard';
+import { CategoryPickerModal } from '@/components/CategoryPickerModal';
+import { PersonChip } from '@/components/PersonChip';
+import { ToastNotification } from '@/components/ToastNotification';
 import {
   formatAmount,
-  sanitizeAmountInput,
   isValidAmount,
   parseAmount,
+  sanitizeAmountInput,
 } from '@/constants/amountUtils';
+import { avatarColors, colors } from '@/constants/colors';
 import { initialsFromName } from '@/constants/dateFormat';
 import { categories } from '@/constants/sampleData';
-import { useUserStore } from '@/store/useUserStore';
-import { DEV_USER_ID } from '@/lib/auth';
-import { useGroupDetail, useGroupMembers } from '@/hooks/useGroups';
+import { fonts } from '@/constants/typography';
 import { useBalances, useNetBalance } from '@/hooks/useBalances';
-import { useExpenses, useAddExpense } from '@/hooks/useExpenses';
+import { useAddExpense, useExpenses } from '@/hooks/useExpenses';
+import { useGroupDetail, useGroupMembers } from '@/hooks/useGroups';
 import { useSettleUp, useSettlements } from '@/hooks/useSettlements';
-import { ToastNotification } from '@/components/ToastNotification';
-import { ActivityRow, SettlementRow } from '@/components/ActivityRow';
-import { PersonChip } from '@/components/PersonChip';
-import { CategoryPickerModal } from '@/components/CategoryPickerModal';
-import type { AvatarColor } from '@/types/database';
-import type { MemberLite } from '@/components/ActivityRow';
+import { DEV_USER_ID } from '@/lib/auth';
+import { useUserStore } from '@/store/useUserStore';
+import type { AvatarColor, Balance } from '@/types/database';
+import { Ionicons } from '@expo/vector-icons';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+  useWindowDimensions,
+} from 'react-native';
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withSequence,
+  withTiming,
+} from 'react-native-reanimated';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -421,23 +422,22 @@ export default function GroupDetailScreen() {
     toastTimer.current = setTimeout(() => setToastVisible(false), 2400);
   }, []);
 
-  const owedBalances = balances.filter(b => b.amount < 0);
-  const handleSettleAll = useCallback(async () => {
-    if (!groupId || owedBalances.length === 0) return;
+  const isPersonalGroup = group?.group_type === 'personal';
+
+  const handlePay = useCallback(async (b: Balance) => {
+    if (!groupId) return;
     try {
-      await Promise.all(owedBalances.map(b =>
-        settleUp.mutateAsync({ groupId, toUserId: b.userId, amount: Math.abs(b.amount) })
-      ));
-      showToast('All settlements recorded ✓');
-    } catch {}
-  }, [groupId, owedBalances, settleUp, showToast]);
+      await settleUp.mutateAsync({ groupId, toUserId: b.userId, amount: Math.abs(b.amount) });
+      showToast(`Settled with ${b.name} ✓`);
+    } catch {
+      showToast('Could not record settlement');
+    }
+  }, [groupId, settleUp, showToast]);
 
   const memberMap = new Map<string, MemberLite>(
     members.map(m => [m.userId, { id: m.userId, name: m.name, color: m.avatarColor }])
   );
 
-  const isOwed = netAmt >= 0;
-  const hasBalance = Math.abs(netAmt) >= 0.01;
 
   if (groupLoading && !group) {
     return (
@@ -494,11 +494,12 @@ export default function GroupDetailScreen() {
       >
         {/* Group banner */}
         <View style={styles.banner}>
-          {/* Top: emoji + name + type + avatars */}
+          {/* Top: emoji + info + balance */}
           <View style={styles.bannerTop}>
             <View style={styles.bannerEmojiWrap}>
               <Text style={styles.bannerEmojiText}>{group?.cover_emoji}</Text>
             </View>
+
             <View style={styles.bannerInfo}>
               <View style={styles.bannerNameRow}>
                 <Text style={styles.bannerName} numberOfLines={1}>{group?.name}</Text>
@@ -530,9 +531,10 @@ export default function GroupDetailScreen() {
                 </Text>
               </View>
             </View>
+
           </View>
 
-          {/* Stats row */}
+          {/* Stats row — total spent + expense count */}
           <View style={styles.bannerStats}>
             <View style={styles.bannerStat}>
               <Text style={styles.bannerStatValue}>{formatAmount(totalExpenses)}</Text>
@@ -543,28 +545,22 @@ export default function GroupDetailScreen() {
               <Text style={styles.bannerStatValue}>{expenses.length}</Text>
               <Text style={styles.bannerStatLabel}>{expenses.length === 1 ? 'expense' : 'expenses'}</Text>
             </View>
-            <View style={styles.bannerStatDivider} />
-            <View style={styles.bannerStat}>
-              <Text style={[styles.bannerStatValue, hasBalance ? (isOwed ? { color: colors.accent } : { color: colors.danger }) : { color: colors.text2 }]}>
-                {hasBalance ? `${isOwed ? '+' : '−'}${formatAmount(Math.abs(netAmt))}` : '₹0'}
-              </Text>
-              <Text style={styles.bannerStatLabel}>your balance</Text>
-            </View>
           </View>
         </View>
 
-        {/* Settle All — only when you owe money */}
-        {!isOwed && hasBalance && (
-          <TouchableOpacity
-            style={styles.settleAllBtn}
-            onPress={handleSettleAll}
-            activeOpacity={0.8}
-            disabled={settleUp.isPending}
-          >
-            <Text style={styles.settleAllBtnText}>
-              ⚡ Settle All · {formatAmount(owedBalances.reduce((s, b) => s + Math.abs(b.amount), 0))}
-            </Text>
-          </TouchableOpacity>
+        {/* Balances — only for non-personal groups */}
+        {!isPersonalGroup && balances.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionLabel}>BALANCES</Text>
+            <View style={[styles.card, { padding: 0, paddingVertical: 4 }]}>
+              {balances.map((b, i) => (
+                <View key={b.userId}>
+                  <BalanceRow balance={b} onPay={handlePay} />
+                  {i < balances.length - 1 && <View style={styles.divider} />}
+                </View>
+              ))}
+            </View>
+          </View>
         )}
 
         {/* Activity feed — expenses + settlements merged */}
@@ -577,9 +573,24 @@ export default function GroupDetailScreen() {
           </View>
           {activityFeed.length === 0 ? (
             <View style={[styles.card, styles.emptyCard]}>
-              <Text style={styles.emptyEmoji}>💸</Text>
-              <Text style={styles.emptyText}>No activity yet</Text>
-              <Text style={styles.emptyHint}>Tap + to add the first expense</Text>
+              <View style={styles.emptyIconWrap}>
+                <Text style={styles.emptyEmoji}>
+                  {group?.group_type === 'personal' ? '📝' : '💸'}
+                </Text>
+              </View>
+              <Text style={styles.emptyText}>No expenses yet</Text>
+              <Text style={styles.emptyHint}>
+                {group?.group_type === 'personal'
+                  ? 'Track your personal spending by adding an expense.'
+                  : `Add the first expense and start splitting with ${members.length > 1 ? 'the group' : 'your group'}.`}
+              </Text>
+              <TouchableOpacity
+                style={styles.emptyAddBtn}
+                onPress={() => setSheetOpen(true)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.emptyAddBtnText}>+ Add Expense</Text>
+              </TouchableOpacity>
             </View>
           ) : (
             <View style={[styles.card, { padding: 0, paddingVertical: 4 }]}>
@@ -597,6 +608,7 @@ export default function GroupDetailScreen() {
                       settlement={item.data}
                       memberMap={memberMap}
                       currentUserId={currentUserId}
+                      onPress={() => router.push(`/settlement/${item.data.id}` as never)}
                     />
                   )}
                   {i < arr.length - 1 && <View style={styles.divider} />}
@@ -847,12 +859,6 @@ const styles = StyleSheet.create({
     fontFamily: fonts.syne, fontSize: 38, letterSpacing: -2, marginBottom: 4,
   },
   balanceSub: { fontFamily: fonts.dmSans, fontSize: 12, color: colors.text2, marginBottom: 12 },
-  settleAllBtn: {
-    backgroundColor: colors.danger, borderRadius: 12,
-    paddingVertical: 10, paddingHorizontal: 20, alignSelf: 'flex-start',
-  },
-  settleAllBtnText: { fontFamily: fonts.syne, fontSize: 13, fontWeight: '800', color: '#fff' },
-
   section: { marginBottom: 14 },
   divider: { height: 1, backgroundColor: colors.border, marginHorizontal: 14 },
 
@@ -861,10 +867,26 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between', marginBottom: 10,
   },
   expTotal: { fontFamily: fonts.dmSansSemiBold, fontSize: 11, color: colors.text2 },
-  emptyCard: { paddingVertical: 36, alignItems: 'center', gap: 6 },
-  emptyEmoji: { fontSize: 36 },
+  emptyCard: { paddingVertical: 36, alignItems: 'center', gap: 8 },
+  emptyIconWrap: {
+    width: 72, height: 72, borderRadius: 22,
+    backgroundColor: colors.cardElevated, borderWidth: 1, borderColor: colors.borderEmphasis,
+    alignItems: 'center', justifyContent: 'center', marginBottom: 4,
+  },
+  emptyEmoji: { fontSize: 32 },
   emptyText: { fontFamily: fonts.syne, fontSize: 15, color: colors.text },
-  emptyHint: { fontFamily: fonts.dmSans, fontSize: 12, color: colors.text3 },
+  emptyHint: {
+    fontFamily: fonts.dmSans, fontSize: 12, color: colors.text3,
+    textAlign: 'center', lineHeight: 18, paddingHorizontal: 16,
+  },
+  emptyAddBtn: {
+    marginTop: 8,
+    backgroundColor: colors.accentDim, borderWidth: 1, borderColor: colors.accentMid,
+    borderRadius: 14, paddingVertical: 10, paddingHorizontal: 24,
+  },
+  emptyAddBtnText: {
+    fontFamily: fonts.dmSansSemiBold, fontSize: 13, color: colors.accent,
+  },
 
   fab: {
     position: 'absolute',
@@ -887,34 +909,34 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card, borderRadius: 22,
     borderWidth: 1, borderColor: colors.border, padding: 18, marginBottom: 14,
   },
-  bannerTop: { flexDirection: 'row', gap: 14, marginBottom: 16 },
+  bannerTop: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 18 },
   bannerEmojiWrap: {
-    width: 56, height: 56, borderRadius: 18,
+    width: 60, height: 60, borderRadius: 20,
     backgroundColor: colors.cardElevated, borderWidth: 1, borderColor: colors.borderEmphasis,
     alignItems: 'center', justifyContent: 'center', flexShrink: 0,
   },
-  bannerEmojiText: { fontSize: 28 },
+  bannerEmojiText: { fontSize: 30 },
   bannerInfo: { flex: 1, justifyContent: 'center', gap: 6 },
   bannerNameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  bannerName: { fontFamily: fonts.syne, fontSize: 17, color: colors.text, flex: 1 },
+  bannerName: { fontFamily: fonts.syne, fontSize: 18, fontWeight: '800', color: colors.text, flex: 1 },
   typeBadge: {
-    backgroundColor: colors.cardElevated, borderRadius: 8,
-    paddingHorizontal: 8, paddingVertical: 3,
+    backgroundColor: colors.cardElevated, borderRadius: 10,
+    paddingHorizontal: 8, paddingVertical: 3, flexShrink: 0,
   },
   typeBadgeText: { fontFamily: fonts.dmSansSemiBold, fontSize: 10, color: colors.text3 },
   avatarStack: { flexDirection: 'row', alignItems: 'center' },
   stackAvatar: {
-    width: 26, height: 26, borderRadius: 13,
+    width: 24, height: 24, borderRadius: 12,
     alignItems: 'center', justifyContent: 'center',
     borderWidth: 1.5, borderColor: colors.card,
   },
-  stackAvatarText: { fontFamily: fonts.dmSansSemiBold, fontSize: 8 },
+  stackAvatarText: { fontFamily: fonts.dmSansSemiBold, fontSize: 7 },
   memberCountText: { fontFamily: fonts.dmSans, fontSize: 11, color: colors.text2, marginLeft: 8 },
   bannerStats: {
     flexDirection: 'row', borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 14,
   },
-  bannerStat: { flex: 1, alignItems: 'center', gap: 3 },
+  bannerStat: { flex: 1, alignItems: 'center', gap: 4 },
   bannerStatDivider: { width: 1, backgroundColor: colors.border },
-  bannerStatValue: { fontFamily: fonts.syne, fontSize: 16, color: colors.text },
+  bannerStatValue: { fontFamily: fonts.syne, fontSize: 18, fontWeight: '800', color: colors.text },
   bannerStatLabel: { fontFamily: fonts.dmSans, fontSize: 10, color: colors.text2 },
 });

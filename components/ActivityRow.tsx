@@ -36,9 +36,9 @@ export function getNetBalance(
 }
 
 export const NET_COLORS: Record<NetType, { main: string; dim: string }> = {
-  lent:     { main: colors.accent, dim: 'rgba(0,212,154,0.55)' },
-  owed:     { main: colors.danger, dim: 'rgba(255,89,89,0.55)' },
-  personal: { main: colors.text,   dim: colors.text3           },
+  lent:     { main: colors.accent, dim: 'rgba(0,212,154,0.80)' },
+  owed:     { main: colors.danger, dim: 'rgba(255,89,89,0.80)' },
+  personal: { main: colors.text,   dim: colors.text2           },
 };
 
 const NET_LABELS: Record<NetType, string> = {
@@ -189,49 +189,61 @@ export function SettlementRow({
   settlement,
   memberMap,
   currentUserId,
+  onPress,
 }: {
   settlement: Settlement;
   memberMap: Map<string, MemberLite>;
   currentUserId: string;
+  onPress?: () => void;
 }) {
-  const fromName = settlement.from_user === currentUserId
-    ? 'You'
-    : formatDisplayName(memberMap.get(settlement.from_user ?? '')?.name);
-  const toName = settlement.to_user === currentUserId
-    ? 'you'
-    : formatDisplayName(memberMap.get(settlement.to_user ?? '')?.name);
+  const isSender = settlement.from_user === currentUserId;
+  const isReceiver = settlement.to_user === currentUserId;
+
+  const fromMember = memberMap.get(settlement.from_user ?? '');
+  const toMember   = memberMap.get(settlement.to_user ?? '');
+
+  const fromLabel = isSender ? 'You' : formatDisplayName(fromMember?.name);
+  const toLabel   = isReceiver ? 'you' : formatDisplayName(toMember?.name);
+
+  const title = isSender
+    ? `You paid ${toLabel}`
+    : `${fromLabel} paid ${isReceiver ? 'you' : toLabel}`;
 
   const dateStr = formatActivityDate(settlement.settled_at);
-  const isCurrentUserSender = settlement.from_user === currentUserId;
 
   return (
-    <View style={rowStyles.row}>
-      <View style={[rowStyles.iconBox, settlementStyles.iconBg]}>
-        <Ionicons name="checkmark-circle" size={20} color={colors.accent} />
-      </View>
-
-      <View style={rowStyles.info}>
-        <Text style={rowStyles.title} numberOfLines={1}>Settlement</Text>
-        <View style={rowStyles.meta}>
-          <Text style={rowStyles.date}>{dateStr}</Text>
-          <Text style={rowStyles.catLabel}> · {fromName} paid {toName}</Text>
+    <TouchableOpacity onPress={onPress} activeOpacity={onPress ? 0.65 : 1} disabled={!onPress}>
+      <View style={rowStyles.row}>
+        {/* Static settlement icon */}
+        <View style={[rowStyles.iconBox, settlementStyles.iconBg]}>
+          <Ionicons name="checkmark-done" size={18} color={colors.accent} />
         </View>
-      </View>
 
-      <View style={rowStyles.right}>
-        <Text style={[rowStyles.netAmount, { color: isCurrentUserSender ? colors.danger : colors.accent }]}>
-          {isCurrentUserSender ? '−' : '+'}{formatAmount(settlement.amount)}
-        </Text>
-        <Text style={[rowStyles.netLabel, { color: isCurrentUserSender ? 'rgba(255,89,89,0.55)' : 'rgba(0,212,154,0.55)' }]}>
-          {isCurrentUserSender ? 'you paid' : 'received'}
-        </Text>
+        <View style={rowStyles.info}>
+          <Text style={rowStyles.title} numberOfLines={1}>{title}</Text>
+          <View style={rowStyles.meta}>
+            <Text style={rowStyles.date}>{dateStr}</Text>
+            <Text style={rowStyles.catLabel}> · settlement</Text>
+          </View>
+        </View>
+
+        <View style={rowStyles.right}>
+          <Text style={[rowStyles.netAmount, { color: colors.accent }]}>
+            {formatAmount(settlement.amount)}
+          </Text>
+          <Text style={[rowStyles.netLabel, { color: 'rgba(0,212,154,0.80)' }]}>
+            {isSender ? 'you paid' : 'received'}
+          </Text>
+        </View>
+
+        {onPress && <Text style={rowStyles.chevron}>›</Text>}
       </View>
-    </View>
+    </TouchableOpacity>
   );
 }
 
 const settlementStyles = StyleSheet.create({
-  iconBg: { backgroundColor: 'rgba(0,212,154,0.10)' },
+  iconBg: { backgroundColor: 'rgba(0,212,154,0.15)', borderWidth: 1, borderColor: colors.accentMid },
 });
 
 export const rowStyles = StyleSheet.create({
@@ -261,7 +273,7 @@ export const rowStyles = StyleSheet.create({
   },
   meta: { flexDirection: 'row', alignItems: 'center' },
   date: { fontFamily: fonts.dmSans, fontSize: 13, color: colors.text2 },
-  catLabel: { fontFamily: fonts.dmSans, fontSize: 13, color: colors.text3 },
+  catLabel: { fontFamily: fonts.dmSans, fontSize: 13, color: colors.text2 },
   splitMeta: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -271,7 +283,7 @@ export const rowStyles = StyleSheet.create({
   payerText: {
     fontFamily: fonts.dmSans,
     fontSize: 13,
-    color: colors.text3,
+    color: colors.text2,
     flexShrink: 1,
   },
   right: { alignItems: 'flex-end', flexShrink: 0, minWidth: 68 },
@@ -281,12 +293,12 @@ export const rowStyles = StyleSheet.create({
     fontWeight: '800',
     marginBottom: 2,
   },
-  netLabel: { fontFamily: fonts.dmSans, fontSize: 12, fontWeight: '400' },
-  chevron: { fontSize: 18, color: colors.text3, flexShrink: 0, marginLeft: -4 },
+  netLabel: { fontFamily: fonts.dmSans, fontSize: 12, fontWeight: '600' },
+  chevron: { fontSize: 18, color: colors.text2, flexShrink: 0, marginLeft: -4 },
   groupBadge: {
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: colors.cardElevated, borderWidth: 1, borderColor: colors.border,
     borderRadius: 8, paddingHorizontal: 7, paddingVertical: 2, marginLeft: 5,
   },
-  groupBadgeText: { fontFamily: fonts.dmSansSemiBold, fontSize: 10, color: colors.text3 },
+  groupBadgeText: { fontFamily: fonts.dmSansSemiBold, fontSize: 10, color: colors.text2 },
 });
