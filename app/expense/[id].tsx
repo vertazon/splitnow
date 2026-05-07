@@ -37,10 +37,10 @@ function formatTime(iso: string): string {
   }).toUpperCase();
 }
 
-const NET_COLORS: Record<NetType, { main: string; dim: string; bg: string }> = {
-  lent:     { main: colors.accent, dim: 'rgba(0,212,154,0.60)', bg: colors.accentDim },
-  owed:     { main: colors.danger, dim: 'rgba(255,89,89,0.60)', bg: colors.dangerDim },
-  personal: { main: colors.text,   dim: colors.text2,           bg: 'transparent'    },
+const NET_COLORS: Record<NetType, { main: string; dim: string; bg: string; border: string }> = {
+  lent:     { main: colors.accent, dim: 'rgba(0,212,154,0.70)',  bg: 'rgba(0,212,154,0.10)',  border: 'rgba(0,212,154,0.25)'  },
+  owed:     { main: colors.danger, dim: 'rgba(255,89,89,0.70)',  bg: 'rgba(255,89,89,0.10)',  border: 'rgba(255,89,89,0.25)'  },
+  personal: { main: colors.text,   dim: colors.text2,            bg: 'transparent',            border: 'transparent'           },
 };
 
 const NET_LABELS: Record<NetType, string> = {
@@ -49,7 +49,13 @@ const NET_LABELS: Record<NetType, string> = {
 
 // ─── Comment bubble ───────────────────────────────────────────────────────────
 
-function CommentBubble({ comment, memberMap, currentUserId }: { comment: ExpenseComment; memberMap: Map<string, User>; currentUserId: string }) {
+function CommentBubble({
+  comment, memberMap, currentUserId,
+}: {
+  comment: ExpenseComment;
+  memberMap: Map<string, User>;
+  currentUserId: string;
+}) {
   const isMe = comment.user_id === currentUserId;
   const member = memberMap.get(comment.user_id);
   if (!member) return null;
@@ -92,14 +98,8 @@ const bubbleStyles = StyleSheet.create({
     fontFamily: fonts.dmSansSemiBold, fontSize: 12, fontWeight: '700',
     color: colors.text2, marginBottom: 3,
   },
-  messageText: {
-    fontFamily: fonts.dmSans, fontSize: 13,
-    color: colors.text, lineHeight: 18,
-  },
-  timestamp: {
-    fontFamily: fonts.dmSans, fontSize: 11,
-    color: colors.text3, marginTop: 4, textAlign: 'right',
-  },
+  messageText: { fontFamily: fonts.dmSans, fontSize: 13, color: colors.text, lineHeight: 18 },
+  timestamp: { fontFamily: fonts.dmSans, fontSize: 11, color: colors.text3, marginTop: 4, textAlign: 'right' },
 });
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
@@ -111,8 +111,6 @@ export default function ExpenseDetailScreen() {
   const currentUserId = useUserStore(s => s.currentUserId) ?? DEV_USER_ID;
 
   const { data: expense, isLoading } = useExpense(id);
-  // Use the expense's own group_id so member names resolve correctly regardless
-  // of which group the user navigated from.
   const { data: members = [] } = useMembers(expense?.group_id ?? groupId);
   const deleteExpense = useDeleteExpense();
   const addComment = useAddComment();
@@ -122,11 +120,10 @@ export default function ExpenseDetailScreen() {
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const deleteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Loading state
   if (isLoading && !expense) {
     return (
       <SafeAreaView style={styles.safe} edges={['top']}>
-        <View style={styles.notFound}>
+        <View style={styles.centred}>
           <ActivityIndicator color={colors.text2} />
         </View>
       </SafeAreaView>
@@ -136,7 +133,7 @@ export default function ExpenseDetailScreen() {
   if (!expense) {
     return (
       <SafeAreaView style={styles.safe} edges={['top']}>
-        <View style={styles.notFound}>
+        <View style={styles.centred}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
             <Ionicons name="chevron-back" size={20} color={colors.text} />
           </TouchableOpacity>
@@ -146,7 +143,7 @@ export default function ExpenseDetailScreen() {
     );
   }
 
-  // ── Derived data ──
+  // ── Derived data ──────────────────────────────────────────────────────────
   const memberMap = new Map<string, User>(members.map(m => [m.id, m]));
   const category = expense.category ? categories.find(c => c.id === expense.category) : null;
   const emoji = category?.emoji ?? '📦';
@@ -154,9 +151,8 @@ export default function ExpenseDetailScreen() {
   const adder = expense.added_by ? memberMap.get(expense.added_by) : null;
 
   const splits = expense.splits ?? [];
-  const splitMembers = splits
-    .map(s => memberMap.get(s.user_id))
-    .filter((m): m is User => !!m);
+  const splitMembers = splits.map(s => memberMap.get(s.user_id)).filter((m): m is User => !!m);
+  const nonPayerMembers = splitMembers.filter(m => m.id !== expense.paid_by);
 
   const perPerson = splits.length > 0
     ? parseFloat((expense.amount / splits.length).toFixed(2))
@@ -165,7 +161,6 @@ export default function ExpenseDetailScreen() {
   const isPersonal = splitMembers.length <= 1;
   const isYouPaid = expense.paid_by === currentUserId;
 
-  // Compute net
   const net: { type: NetType; amount: number } = (() => {
     const otherSplits = splits.filter(s => s.user_id !== currentUserId);
     const myShare = splits.find(s => s.user_id === currentUserId)?.amount_owed ?? 0;
@@ -182,7 +177,9 @@ export default function ExpenseDetailScreen() {
   const updatedFmt = formatDateTime(expense.updated_at);
   const comments = expense.comments ?? [];
 
-  // ── Handlers ──
+  const avFor = (m: User) => avatarColors[(m.avatar_color ?? 'green') as AvatarColor] ?? avatarColors.green;
+
+  // ── Handlers ─────────────────────────────────────────────────────────────
   const handleDelete = () => {
     if (!deleteConfirm) {
       setDeleteConfirm(true);
@@ -192,7 +189,7 @@ export default function ExpenseDetailScreen() {
     }
     deleteExpense.mutate(
       { expenseId: expense.id, groupId: expense.group_id },
-      { onSuccess: () => router.back() }
+      { onSuccess: () => router.back() },
     );
   };
 
@@ -200,23 +197,15 @@ export default function ExpenseDetailScreen() {
     const text = commentText.trim();
     if (!text) return;
     addComment.mutate(
-      {
-        expenseId: expense.id,
-        groupId: expense.group_id,
-        userId: currentUserId,
-        text,
-      },
+      { expenseId: expense.id, groupId: expense.group_id, userId: currentUserId, text },
       {
         onSuccess: () => {
           setCommentText('');
           setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 120);
         },
-      }
+      },
     );
   };
-
-  // Avatar color helper for split rows
-  const avFor = (m: User) => avatarColors[(m.avatar_color ?? 'green') as AvatarColor] ?? avatarColors.green;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -225,17 +214,22 @@ export default function ExpenseDetailScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 24}
       >
-        {/* Fixed header */}
+        {/* ── Header ───────────────────────────────────────────────────── */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.backBtn}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
             <Ionicons name="chevron-back" size={20} color={colors.text} />
           </TouchableOpacity>
+          <Text style={styles.headerTitle}>Expense</Text>
           <View style={styles.headerActions}>
             <TouchableOpacity
               style={styles.actionBtn}
               onPress={() => router.push(`/expense/edit/${expense.id}` as never)}
             >
-              <Ionicons name="pencil-outline" size={13} color={colors.text2} />
+              <Ionicons name="pencil-outline" size={14} color={colors.text2} />
               <Text style={styles.actionBtnText}>Edit</Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -245,17 +239,16 @@ export default function ExpenseDetailScreen() {
             >
               <Ionicons
                 name={deleteConfirm ? 'warning-outline' : 'trash-outline'}
-                size={13}
+                size={14}
                 color={colors.danger}
               />
-              <Text style={[styles.actionBtnText, styles.actionBtnTextDelete]}>
+              <Text style={[styles.actionBtnText, { color: colors.danger }]}>
                 {deleteConfirm ? 'Confirm?' : 'Delete'}
               </Text>
             </TouchableOpacity>
           </View>
         </View>
 
-        {/* Scrollable detail + comments */}
         <ScrollView
           ref={scrollRef}
           style={styles.scroll}
@@ -263,136 +256,134 @@ export default function ExpenseDetailScreen() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Hero */}
-          <View style={styles.hero}>
-            <View style={styles.emojiCircle}>
-              <Text style={styles.heroEmoji}>{emoji}</Text>
+          {/* ── Hero card ────────────────────────────────────────────────── */}
+          <View style={styles.heroCard}>
+            {/* Emoji + title */}
+            <View style={styles.heroTop}>
+              <View style={styles.emojiCircle}>
+                <Text style={styles.heroEmoji}>{emoji}</Text>
+              </View>
+              <Text style={styles.heroTitle}>{expense.title}</Text>
+              {category && (
+                <View style={styles.catChip}>
+                  <Text style={styles.catChipText}>{category.label}</Text>
+                </View>
+              )}
             </View>
-            <Text style={styles.heroTitle}>{expense.title}</Text>
-            {category && (
-              <Text style={styles.heroCatLabel}>{category.label}</Text>
-            )}
-          </View>
 
-          {/* Added by / Updated meta */}
-          <View style={styles.metaBlock}>
-            <View style={styles.metaLine}>
-              {adder && (
-                <View style={[styles.metaAvatar, { backgroundColor: avFor(adder).bg }]}>
-                  <Text style={[styles.metaInitials, { color: avFor(adder).text }]}>
-                    {initialsFromName(adder.name)}
+            {/* Divider */}
+            <View style={styles.heroDivider} />
+
+            {/* Amount + net badge */}
+            <View style={styles.heroAmountRow}>
+              <View style={styles.heroAmountBlock}>
+                <Text style={styles.heroAmountLabel}>TOTAL AMOUNT</Text>
+                <Text style={styles.heroAmount}>{formatAmount(expense.amount)}</Text>
+                {!isPersonal && (
+                  <Text style={styles.heroAmountSub}>
+                    {formatAmount(perPerson)} × {splitMembers.length} people
+                  </Text>
+                )}
+              </View>
+              {net.type !== 'personal' && (
+                <View style={[styles.netBadge, { backgroundColor: netColor.bg, borderColor: netColor.border }]}>
+                  <Text style={[styles.netBadgeAmt, { color: netColor.main }]}>
+                    {net.type === 'owed' ? '−' : '+'}{formatAmount(net.amount)}
+                  </Text>
+                  <Text style={[styles.netBadgeLabel, { color: netColor.dim }]}>
+                    {NET_LABELS[net.type]}
                   </Text>
                 </View>
               )}
-              <Text style={styles.metaKey}>Added by </Text>
-              <Text style={styles.metaVal}>
-                {adder ? (adder.id === currentUserId ? 'you' : formatDisplayName(adder.name)) : '—'}
-              </Text>
-              {createdFmt && (
-                <Text style={styles.metaKey}> · {createdFmt.date}</Text>
-              )}
             </View>
-            {updatedFmt && (
-              <View style={styles.metaLine}>
-                <Text style={styles.metaKey}>Updated · </Text>
-                <Text style={styles.metaVal}>{updatedFmt.date} · {updatedFmt.time}</Text>
-              </View>
-            )}
-          </View>
 
-          {/* Amount card */}
-          <View style={styles.amountCard}>
-            <View style={styles.amountRow}>
-              <View style={styles.amountCol}>
-                <Text style={styles.amountColLabel}>TOTAL</Text>
-                <Text style={styles.amountColValue}>{formatAmount(expense.amount)}</Text>
-                {!isPersonal && (
-                  <Text style={styles.amountColSub}>{splitMembers.length} people</Text>
-                )}
-              </View>
-              {!isPersonal && (
+            {/* Meta: date · added by */}
+            <View style={styles.heroMeta}>
+              <Ionicons name="calendar-outline" size={12} color={colors.text3} />
+              <Text style={styles.heroMetaText}>{createdFmt?.date ?? ''}</Text>
+              {adder && (
                 <>
-                  <View style={styles.amountColDivider} />
-                  <View style={styles.amountCol}>
-                    <Text style={styles.amountColLabel}>YOUR SHARE</Text>
-                    <Text style={styles.amountColValue}>{formatAmount(perPerson)}</Text>
-                    <Text style={styles.amountColSub}>per person</Text>
+                  <Text style={styles.heroMetaDot}>·</Text>
+                  <View style={[styles.heroMetaAvatar, { backgroundColor: avFor(adder).bg }]}>
+                    <Text style={[styles.heroMetaInitials, { color: avFor(adder).text }]}>
+                      {initialsFromName(adder.name)}
+                    </Text>
                   </View>
+                  <Text style={styles.heroMetaText}>
+                    by {adder.id === currentUserId ? 'you' : formatDisplayName(adder.name)}
+                  </Text>
+                </>
+              )}
+              {updatedFmt && (
+                <>
+                  <Text style={styles.heroMetaDot}>·</Text>
+                  <Ionicons name="pencil-outline" size={11} color={colors.text3} />
+                  <Text style={styles.heroMetaText}>edited</Text>
                 </>
               )}
             </View>
-            {net.type !== 'personal' && (
-              <View style={[styles.netStrip, { backgroundColor: netColor.bg }]}>
-                <Text style={[styles.netStripSign, { color: netColor.main }]}>
-                  {net.type === 'owed' ? '−' : '+'}{formatAmount(net.amount)}
-                </Text>
-                <Text style={[styles.netStripLabel, { color: netColor.dim }]}>
-                  {NET_LABELS[net.type]}
-                </Text>
-              </View>
-            )}
           </View>
 
-          {/* Paid by */}
-          {payer && (
+          {/* ── Participants ─────────────────────────────────────────────── */}
+          {(payer || splitMembers.length > 0) && (
             <View style={styles.section}>
-              <Text style={styles.sectionLabel}>PAID BY</Text>
+              <Text style={styles.sectionLabel}>
+                {isPersonal ? 'PAID BY' : 'PARTICIPANTS'}
+              </Text>
               <View style={styles.card}>
-                <View style={styles.memberRow}>
-                  <View style={[styles.avatar, { backgroundColor: avFor(payer).bg }]}>
-                    <Text style={[styles.avatarText, { color: avFor(payer).text }]}>
-                      {initialsFromName(payer.name)}
-                    </Text>
-                  </View>
-                  <View style={styles.memberInfo}>
-                    <Text style={styles.memberName}>
-                      {payer.id === currentUserId ? `You (${formatDisplayName(payer.name)})` : formatDisplayName(payer.name)}
-                    </Text>
-                    <Text style={styles.memberSub}>
-                      Paid {formatAmount(expense.amount)}
-                    </Text>
-                  </View>
-                  <View style={[styles.badge, isYouPaid ? styles.badgeGreen : styles.badgeDefault]}>
-                    <Text style={[styles.badgeText, { color: isYouPaid ? colors.accent : colors.text2 }]}>
-                      {isYouPaid ? 'You paid' : 'They paid'}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-            </View>
-          )}
 
-          {/* Split with */}
-          {splitMembers.length > 1 && (
-            <View style={styles.section}>
-              <Text style={styles.sectionLabel}>SPLIT WITH</Text>
-              <View style={[styles.card, styles.cardFlush]}>
-                {splitMembers.map((m, i) => {
-                  const isPayer = m.id === expense.paid_by;
-                  const shareColor = isPayer
-                    ? colors.text2
-                    : (isYouPaid || m.id === currentUserId) ? colors.danger : colors.text2;
+                {/* Payer row */}
+                {payer && (
+                  <View style={styles.participantRow}>
+                    <View style={[styles.avatar, { backgroundColor: avFor(payer).bg }]}>
+                      <Text style={[styles.avatarText, { color: avFor(payer).text }]}>
+                        {initialsFromName(payer.name)}
+                      </Text>
+                    </View>
+                    <View style={styles.participantInfo}>
+                      <Text style={styles.participantName}>
+                        {payer.id === currentUserId ? 'You' : formatDisplayName(payer.name)}
+                      </Text>
+                      <Text style={styles.participantSub}>
+                        {isPersonal ? 'personal expense' : 'paid the bill'}
+                      </Text>
+                    </View>
+                    <View style={styles.participantRight}>
+                      <Text style={[styles.participantAmt, { color: colors.accent }]}>
+                        {formatAmount(expense.amount)}
+                      </Text>
+                      <View style={styles.paidTag}>
+                        <Text style={styles.paidTagText}>paid ✓</Text>
+                      </View>
+                    </View>
+                  </View>
+                )}
+
+                {/* Non-payer split members */}
+                {nonPayerMembers.map((m, i) => {
+                  const isMe = m.id === currentUserId;
+                  const amtColor = isYouPaid
+                    ? colors.danger
+                    : isMe ? colors.danger : colors.text2;
                   return (
                     <View key={m.id}>
-                      <View style={styles.splitRow}>
+                      <View style={styles.participantDivider} />
+                      <View style={styles.participantRow}>
                         <View style={[styles.avatar, { backgroundColor: avFor(m).bg }]}>
                           <Text style={[styles.avatarText, { color: avFor(m).text }]}>
                             {initialsFromName(m.name)}
                           </Text>
                         </View>
-                        <View style={styles.memberInfo}>
-                          <Text style={styles.memberName}>
-                            {m.id === currentUserId ? 'You' : formatDisplayName(m.name)}
+                        <View style={styles.participantInfo}>
+                          <Text style={styles.participantName}>
+                            {isMe ? 'You' : formatDisplayName(m.name)}
                           </Text>
-                          {isPayer && (
-                            <Text style={styles.payerTagText}>paid · settled</Text>
-                          )}
+                          <Text style={styles.participantSub}>owes share</Text>
                         </View>
-                        <Text style={[styles.shareAmt, { color: shareColor }]}>
-                          {isPayer ? '' : '−'}{formatAmount(perPerson)}
+                        <Text style={[styles.participantAmt, { color: amtColor }]}>
+                          −{formatAmount(perPerson)}
                         </Text>
                       </View>
-                      {i < splitMembers.length - 1 && <View style={styles.splitDivider} />}
                     </View>
                   );
                 })}
@@ -400,7 +391,7 @@ export default function ExpenseDetailScreen() {
             </View>
           )}
 
-          {/* Note */}
+          {/* ── Note ─────────────────────────────────────────────────────── */}
           {expense.note && (
             <View style={styles.section}>
               <Text style={styles.sectionLabel}>NOTE</Text>
@@ -410,7 +401,7 @@ export default function ExpenseDetailScreen() {
             </View>
           )}
 
-          {/* Comments */}
+          {/* ── Comments ─────────────────────────────────────────────────── */}
           <View style={styles.section}>
             <Text style={styles.sectionLabel}>
               COMMENTS{comments.length > 0 ? `  ${comments.length}` : ''}
@@ -422,7 +413,12 @@ export default function ExpenseDetailScreen() {
                 {[...comments]
                   .sort((a, b) => a.created_at.localeCompare(b.created_at))
                   .map(c => (
-                    <CommentBubble key={c.id} comment={c} memberMap={memberMap} currentUserId={currentUserId} />
+                    <CommentBubble
+                      key={c.id}
+                      comment={c}
+                      memberMap={memberMap}
+                      currentUserId={currentUserId}
+                    />
                   ))}
               </View>
             )}
@@ -431,7 +427,7 @@ export default function ExpenseDetailScreen() {
           <View style={{ height: 8 }} />
         </ScrollView>
 
-        {/* Pinned comment input */}
+        {/* ── Comment input ─────────────────────────────────────────────── */}
         <View style={styles.inputBar}>
           <TextInput
             style={styles.inputField}
@@ -461,109 +457,112 @@ export default function ExpenseDetailScreen() {
   );
 }
 
+// ─── Styles ───────────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
   flex: { flex: 1 },
-  notFound: { flex: 1, paddingHorizontal: 22, paddingTop: 16, justifyContent: 'center' },
+
+  centred: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 22 },
   notFoundText: {
-    fontFamily: fonts.dmSans, fontSize: 14, color: colors.text2,
-    textAlign: 'center', marginTop: 60,
+    fontFamily: fonts.dmSans, fontSize: 14, color: colors.text2, textAlign: 'center', marginTop: 16,
   },
 
+  // ── Header
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 22,
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 16, paddingVertical: 10,
+    borderBottomWidth: 1, borderBottomColor: colors.border,
   },
   backBtn: {
     width: 36, height: 36, borderRadius: 12,
-    backgroundColor: colors.cardElevated,
-    borderWidth: 1, borderColor: colors.border,
+    backgroundColor: colors.cardElevated, borderWidth: 1, borderColor: colors.border,
     alignItems: 'center', justifyContent: 'center',
+  },
+  headerTitle: {
+    flex: 1, textAlign: 'center',
+    fontFamily: fonts.syne, fontSize: 17, color: colors.text,
   },
   headerActions: { flexDirection: 'row', gap: 8 },
   actionBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    borderRadius: 10, paddingHorizontal: 12, paddingVertical: 7,
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    borderRadius: 10, paddingHorizontal: 11, paddingVertical: 7,
     borderWidth: 1, borderColor: colors.borderEmphasis,
     backgroundColor: colors.cardElevated,
   },
   actionBtnDelete: {
-    borderColor: 'rgba(255,89,89,0.25)',
-    backgroundColor: 'rgba(255,89,89,0.08)',
+    borderColor: 'rgba(255,89,89,0.25)', backgroundColor: 'rgba(255,89,89,0.08)',
   },
-  actionBtnDanger: {
-    borderColor: colors.danger,
-    backgroundColor: colors.dangerDim,
-  },
-  actionBtnText: {
-    fontFamily: fonts.dmSansSemiBold, fontSize: 13,
-    fontWeight: '600', color: colors.text2,
-  },
-  actionBtnTextDelete: { color: colors.danger },
+  actionBtnDanger: { borderColor: colors.danger, backgroundColor: colors.dangerDim },
+  actionBtnText: { fontFamily: fonts.dmSansSemiBold, fontSize: 13, fontWeight: '600', color: colors.text2 },
 
+  // ── Scroll
   scroll: { flex: 1 },
-  content: { paddingHorizontal: 22, paddingTop: 16, paddingBottom: 8 },
+  content: { paddingHorizontal: 16, paddingTop: 18, paddingBottom: 8 },
 
-  hero: { alignItems: 'center', marginBottom: 16 },
+  // ── Hero card
+  heroCard: {
+    backgroundColor: colors.card, borderRadius: 24,
+    borderWidth: 1, borderColor: colors.border,
+    marginBottom: 16, overflow: 'hidden',
+  },
+  heroTop: { alignItems: 'center', paddingTop: 28, paddingBottom: 22, paddingHorizontal: 20 },
   emojiCircle: {
-    width: 76, height: 76, borderRadius: 24,
+    width: 72, height: 72, borderRadius: 22,
     backgroundColor: colors.cardElevated,
     borderWidth: 1, borderColor: colors.borderEmphasis,
     alignItems: 'center', justifyContent: 'center', marginBottom: 14,
   },
-  heroEmoji: { fontSize: 38 },
+  heroEmoji: { fontSize: 34 },
   heroTitle: {
-    fontFamily: fonts.syne, fontSize: 22, fontWeight: '800',
-    color: colors.text, textAlign: 'center', marginBottom: 6,
+    fontFamily: fonts.syne, fontSize: 20, fontWeight: '800',
+    color: colors.text, textAlign: 'center', marginBottom: 8, lineHeight: 26,
   },
-  heroCatLabel: {
-    fontFamily: fonts.dmSans, fontSize: 13, color: colors.text2,
+  catChip: {
+    backgroundColor: colors.cardElevated, borderWidth: 1, borderColor: colors.borderEmphasis,
+    borderRadius: 20, paddingHorizontal: 12, paddingVertical: 5,
   },
+  catChipText: { fontFamily: fonts.dmSansSemiBold, fontSize: 12, fontWeight: '600', color: colors.text2 },
 
-  metaBlock: {
-    marginBottom: 16, paddingHorizontal: 2, gap: 6,
-  },
-  metaLine: { flexDirection: 'row', alignItems: 'center' },
-  metaAvatar: {
-    width: 20, height: 20, borderRadius: 10,
-    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-    marginRight: 6,
-  },
-  metaInitials: { fontFamily: fonts.dmSansSemiBold, fontSize: 10, fontWeight: '700' },
-  metaKey: { fontFamily: fonts.dmSans, fontSize: 13, color: colors.text2 },
-  metaVal: { fontFamily: fonts.dmSansSemiBold, fontSize: 13, fontWeight: '600', color: colors.text },
+  heroDivider: { height: 1, backgroundColor: colors.border, marginHorizontal: 0 },
 
-  amountCard: {
-    backgroundColor: colors.card, borderWidth: 1,
-    borderColor: colors.border, borderRadius: 22,
-    overflow: 'hidden', marginBottom: 16,
+  heroAmountRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 20, paddingTop: 18, paddingBottom: 14,
   },
-  amountRow: { flexDirection: 'row', padding: 20, paddingBottom: 16 },
-  amountCol: { flex: 1, alignItems: 'center' },
-  amountColDivider: { width: 1, backgroundColor: colors.border, marginVertical: 2 },
-  amountColLabel: {
+  heroAmountBlock: {},
+  heroAmountLabel: {
     fontFamily: fonts.dmSansSemiBold, fontSize: 10, fontWeight: '700',
     letterSpacing: 1, textTransform: 'uppercase', color: colors.text3, marginBottom: 4,
   },
-  amountColValue: {
-    fontFamily: fonts.syne, fontSize: 28, fontWeight: '800',
-    letterSpacing: -1, color: colors.text, marginBottom: 2,
+  heroAmount: {
+    fontFamily: fonts.syne, fontSize: 36, fontWeight: '800',
+    letterSpacing: -1.5, color: colors.text,
   },
-  amountColSub: { fontFamily: fonts.dmSans, fontSize: 13, color: colors.text3 },
-  netStrip: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 6, paddingVertical: 11, borderTopWidth: 1, borderTopColor: colors.border,
-  },
-  netStripSign: { fontFamily: fonts.syne, fontSize: 16, fontWeight: '800' },
-  netStripLabel: { fontFamily: fonts.dmSans, fontSize: 13 },
+  heroAmountSub: { fontFamily: fonts.dmSans, fontSize: 12, color: colors.text2, marginTop: 3 },
 
+  netBadge: {
+    alignItems: 'center', borderRadius: 16, borderWidth: 1,
+    paddingHorizontal: 14, paddingVertical: 10, minWidth: 90,
+  },
+  netBadgeAmt: { fontFamily: fonts.syne, fontSize: 18, fontWeight: '800', letterSpacing: -0.5 },
+  netBadgeLabel: { fontFamily: fonts.dmSans, fontSize: 11, marginTop: 2 },
+
+  heroDivider2: { height: 1, backgroundColor: colors.border },
+  heroMeta: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    paddingHorizontal: 20, paddingTop: 12, paddingBottom: 16,
+    borderTopWidth: 1, borderTopColor: colors.border,
+  },
+  heroMetaText: { fontFamily: fonts.dmSans, fontSize: 12, color: colors.text2 },
+  heroMetaDot: { fontFamily: fonts.dmSans, fontSize: 12, color: colors.text3 },
+  heroMetaAvatar: {
+    width: 18, height: 18, borderRadius: 9,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  heroMetaInitials: { fontFamily: fonts.dmSansSemiBold, fontSize: 9, fontWeight: '700' },
+
+  // ── Sections
   section: { marginBottom: 14 },
   sectionLabel: {
     fontFamily: fonts.dmSansSemiBold, fontSize: 10, fontWeight: '700',
@@ -571,77 +570,62 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: colors.card, borderWidth: 1,
-    borderColor: colors.border, borderRadius: 18, padding: 14,
+    borderColor: colors.border, borderRadius: 20,
+    overflow: 'hidden',
   },
-  cardFlush: { padding: 0, paddingVertical: 4 },
 
-  memberRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  // ── Participants
+  participantRow: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 16, paddingVertical: 13, gap: 12,
+  },
+  participantDivider: { height: 1, backgroundColor: colors.border, marginHorizontal: 16 },
   avatar: {
-    width: 38, height: 38, borderRadius: 19,
+    width: 40, height: 40, borderRadius: 20,
     alignItems: 'center', justifyContent: 'center', flexShrink: 0,
   },
-  avatarText: { fontFamily: fonts.dmSansSemiBold, fontSize: 12, fontWeight: '700' },
-  memberInfo: { flex: 1 },
-  memberName: {
-    fontFamily: fonts.dmSansSemiBold, fontSize: 13,
-    fontWeight: '600', color: colors.text,
+  avatarText: { fontFamily: fonts.dmSansSemiBold, fontSize: 13, fontWeight: '700' },
+  participantInfo: { flex: 1 },
+  participantName: {
+    fontFamily: fonts.dmSansSemiBold, fontSize: 14, fontWeight: '600', color: colors.text,
   },
-  memberSub: { fontFamily: fonts.dmSans, fontSize: 13, color: colors.text2, marginTop: 1 },
-  badge: { borderRadius: 10, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, flexShrink: 0 },
-  badgeGreen: { backgroundColor: colors.accentDim, borderColor: colors.accentMid },
-  badgeDefault: { backgroundColor: colors.cardElevated, borderColor: colors.border },
-  badgeText: { fontFamily: fonts.dmSansSemiBold, fontSize: 12, fontWeight: '600' },
-
-  splitRow: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 14, paddingVertical: 11, gap: 10,
+  participantSub: { fontFamily: fonts.dmSans, fontSize: 12, color: colors.text2, marginTop: 2 },
+  participantRight: { alignItems: 'flex-end', gap: 4 },
+  participantAmt: { fontFamily: fonts.syne, fontSize: 15, fontWeight: '800', letterSpacing: -0.3 },
+  paidTag: {
+    backgroundColor: colors.accentDim, borderWidth: 1, borderColor: colors.accentMid,
+    borderRadius: 8, paddingHorizontal: 8, paddingVertical: 2,
   },
-  splitDivider: { height: 1, backgroundColor: colors.border, marginHorizontal: 14 },
-  payerTagText: { fontFamily: fonts.dmSans, fontSize: 13, color: colors.accent, marginTop: 1 },
-  shareAmt: { fontFamily: fonts.syne, fontSize: 14, fontWeight: '800', flexShrink: 0 },
+  paidTagText: { fontFamily: fonts.dmSansSemiBold, fontSize: 11, fontWeight: '600', color: colors.accent },
 
-  noteText: { fontFamily: fonts.dmSans, fontSize: 13, color: colors.text, lineHeight: 20 },
+  // ── Note
+  noteText: { fontFamily: fonts.dmSans, fontSize: 13, color: colors.text, lineHeight: 20, padding: 14 },
 
+  // ── Comments
   emptyComments: {
     fontFamily: fonts.dmSans, fontSize: 13, color: colors.text3,
     textAlign: 'center', paddingVertical: 20,
   },
   commentsList: { gap: 0 },
 
+  // ── Input bar
   inputBar: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 10,
-    paddingHorizontal: 16,
-    paddingTop: 10,
+    flexDirection: 'row', alignItems: 'flex-end', gap: 10,
+    paddingHorizontal: 16, paddingTop: 10,
     paddingBottom: Platform.OS === 'ios' ? 20 : 14,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderTopWidth: 1, borderTopColor: colors.border,
     backgroundColor: colors.bg,
   },
   inputField: {
-    flex: 1,
-    backgroundColor: colors.cardElevated,
-    borderWidth: 1,
-    borderColor: colors.borderEmphasis,
-    borderRadius: 20,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    fontFamily: fonts.dmSans,
-    fontSize: 13,
-    color: colors.text,
-    maxHeight: 100,
+    flex: 1, backgroundColor: colors.cardElevated,
+    borderWidth: 1, borderColor: colors.borderEmphasis,
+    borderRadius: 20, paddingHorizontal: 14, paddingVertical: 10,
+    fontFamily: fonts.dmSans, fontSize: 13, color: colors.text, maxHeight: 100,
   },
   sendBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: colors.cardElevated,
-    borderWidth: 1,
-    borderColor: colors.borderEmphasis,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
+    width: 38, height: 38, borderRadius: 19,
+    backgroundColor: colors.cardElevated, borderWidth: 1, borderColor: colors.borderEmphasis,
+    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
   },
   sendBtnActive: { backgroundColor: colors.accent, borderColor: colors.accent },
   sendBtnText: { fontSize: 16, color: colors.text3, fontWeight: '700' },
