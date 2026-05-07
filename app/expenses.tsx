@@ -1,30 +1,29 @@
-import { useMemo, useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  Platform,
-  TouchableOpacity,
-  ActivityIndicator,
-  FlatList,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import type { MemberLite } from '@/components/ActivityRow';
+import { ActivityRow, getNetBalance } from '@/components/ActivityRow';
+import { formatAmount } from '@/constants/amountUtils';
 import { colors } from '@/constants/colors';
 import { fonts } from '@/constants/typography';
-import { formatAmount } from '@/constants/amountUtils';
-import type { AvatarColor } from '@/types/database';
-import { DEV_USER_ID } from '@/lib/auth';
-import { useUserStore } from '@/store/useUserStore';
-import { useGroupStore } from '@/store/useGroupStore';
-import { useQuery, useQueries } from '@tanstack/react-query';
 import { fetchExpenses, type ExpenseWithSplits } from '@/hooks/useExpenses';
-import { fetchMembersForGroup } from '@/hooks/useMembers';
-import { qk } from '@/lib/queryKeys';
-import { useMembers } from '@/hooks/useMembers';
 import { useGroupDetail, useGroups } from '@/hooks/useGroups';
-import { ActivityRow, NET_COLORS, getNetBalance } from '@/components/ActivityRow';
-import type { MemberLite } from '@/components/ActivityRow';
+import { fetchMembersForGroup, useMembers } from '@/hooks/useMembers';
+import { DEV_USER_ID } from '@/lib/auth';
+import { qk } from '@/lib/queryKeys';
+import { useGroupStore } from '@/store/useGroupStore';
+import { useUserStore } from '@/store/useUserStore';
+import type { AvatarColor } from '@/types/database';
+import { useQueries, useQuery } from '@tanstack/react-query';
+import { useRouter } from 'expo-router';
+import { useMemo, useState } from 'react';
+import {
+  ActivityIndicator,
+  FlatList,
+  Platform,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 // ─── Filter tabs ─────────────────────────────────────────────────────────────
 

@@ -59,7 +59,7 @@ function GroupCard({ group, onPress }: { group: GroupWithStats; onPress: () => v
           <Text style={styles.groupName}>{group.name}</Text>
           <View style={styles.groupMeta}>
             <AvatarStack members={group.members} />
-            <Text style={styles.groupMemberCount}>{group.member_count} members</Text>
+            <Text style={styles.groupMemberCount}>{group.member_count} {Number(group.member_count) === 1 ? 'member' : 'members'}</Text>
           </View>
         </View>
         <View style={styles.groupBalance}>
