@@ -238,7 +238,13 @@ export default function InsightsScreen() {
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
 
   const { data: groups = [] } = useGroups(currentUserId);
-  const activeGroups = groups.filter(g => !g.archived_at);
+  const activeGroups = groups
+    .filter(g => !g.archived_at)
+    .sort((a, b) => {
+      if (a.group_type === 'personal') return -1;
+      if (b.group_type === 'personal') return 1;
+      return 0;
+    });
   const allGroupIds = activeGroups.map(g => g.id);
 
   // True when a specific personal group is selected (not All mode)

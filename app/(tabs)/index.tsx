@@ -42,7 +42,13 @@ export default function HomeScreen() {
   const currentUserId = useUserStore(s => s.currentUserId) ?? DEV_USER_ID;
 
   const { data: groups = [] } = useGroups(currentUserId);
-  const activeGroups = groups.filter(g => !g.archived_at);
+  const activeGroups = groups
+    .filter(g => !g.archived_at)
+    .sort((a, b) => {
+      if (a.group_type === 'personal') return -1;
+      if (b.group_type === 'personal') return 1;
+      return 0;
+    });
   const allGroupIds = activeGroups.map(g => g.id);
 
   // Fetch expenses, balances, and members for every active group.

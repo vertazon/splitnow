@@ -269,44 +269,36 @@ export default function ExpenseDetailScreen() {
               <Text style={styles.heroEmoji}>{emoji}</Text>
             </View>
             <Text style={styles.heroTitle}>{expense.title}</Text>
-            <View style={styles.heroMeta}>
-              <Text style={styles.heroDate}>{createdFmt?.date ?? ''}</Text>
-              {category && (
-                <>
-                  <Text style={styles.heroSep}>·</Text>
-                  <View style={styles.catPill}>
-                    <Text style={styles.catPillText}>{category.emoji} {category.label}</Text>
-                  </View>
-                </>
-              )}
-            </View>
+            {category && (
+              <Text style={styles.heroCatLabel}>{category.label}</Text>
+            )}
           </View>
 
-          {/* Entry details */}
-          {(createdFmt || adder) && (
-            <View style={styles.entryMetaRow}>
+          {/* Added by / Updated meta */}
+          <View style={styles.metaBlock}>
+            <View style={styles.metaLine}>
               {adder && (
-                <View style={[styles.entryMetaAvatar, { backgroundColor: avFor(adder).bg }]}>
-                  <Text style={[styles.entryMetaInitials, { color: avFor(adder).text }]}>
+                <View style={[styles.metaAvatar, { backgroundColor: avFor(adder).bg }]}>
+                  <Text style={[styles.metaInitials, { color: avFor(adder).text }]}>
                     {initialsFromName(adder.name)}
                   </Text>
                 </View>
               )}
-              <View style={styles.entryMetaText}>
-                {adder && (
-                  <Text style={styles.entryMetaLabel}>
-                    Added by {adder.id === currentUserId ? 'you' : formatDisplayName(adder.name)}
-                    {updatedFmt ? ' · edited' : ''}
-                  </Text>
-                )}
-                {createdFmt && (
-                  <Text style={styles.entryMetaTime}>
-                    {createdFmt.date} · {createdFmt.time}
-                  </Text>
-                )}
-              </View>
+              <Text style={styles.metaKey}>Added by </Text>
+              <Text style={styles.metaVal}>
+                {adder ? (adder.id === currentUserId ? 'you' : formatDisplayName(adder.name)) : '—'}
+              </Text>
+              {createdFmt && (
+                <Text style={styles.metaKey}> · {createdFmt.date}</Text>
+              )}
             </View>
-          )}
+            {updatedFmt && (
+              <View style={styles.metaLine}>
+                <Text style={styles.metaKey}>Updated · </Text>
+                <Text style={styles.metaVal}>{updatedFmt.date} · {updatedFmt.time}</Text>
+              </View>
+            )}
+          </View>
 
           {/* Amount card */}
           <View style={styles.amountCard}>
@@ -519,7 +511,7 @@ const styles = StyleSheet.create({
   scroll: { flex: 1 },
   content: { paddingHorizontal: 22, paddingTop: 16, paddingBottom: 8 },
 
-  hero: { alignItems: 'center', marginBottom: 20 },
+  hero: { alignItems: 'center', marginBottom: 16 },
   emojiCircle: {
     width: 76, height: 76, borderRadius: 24,
     backgroundColor: colors.cardElevated,
@@ -529,20 +521,24 @@ const styles = StyleSheet.create({
   heroEmoji: { fontSize: 38 },
   heroTitle: {
     fontFamily: fonts.syne, fontSize: 22, fontWeight: '800',
-    color: colors.text, textAlign: 'center', marginBottom: 8,
+    color: colors.text, textAlign: 'center', marginBottom: 6,
   },
-  heroMeta: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  heroDate: { fontFamily: fonts.dmSans, fontSize: 12, color: colors.text2 },
-  heroSep: { fontFamily: fonts.dmSans, fontSize: 12, color: colors.text3 },
-  catPill: {
-    backgroundColor: colors.cardElevated, borderWidth: 1,
-    borderColor: colors.borderEmphasis, borderRadius: 20,
-    paddingHorizontal: 10, paddingVertical: 4,
+  heroCatLabel: {
+    fontFamily: fonts.dmSans, fontSize: 13, color: colors.text2,
   },
-  catPillText: {
-    fontFamily: fonts.dmSansSemiBold, fontSize: 13,
-    fontWeight: '600', color: colors.text2,
+
+  metaBlock: {
+    marginBottom: 16, paddingHorizontal: 2, gap: 6,
   },
+  metaLine: { flexDirection: 'row', alignItems: 'center' },
+  metaAvatar: {
+    width: 20, height: 20, borderRadius: 10,
+    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+    marginRight: 6,
+  },
+  metaInitials: { fontFamily: fonts.dmSansSemiBold, fontSize: 10, fontWeight: '700' },
+  metaKey: { fontFamily: fonts.dmSans, fontSize: 13, color: colors.text2 },
+  metaVal: { fontFamily: fonts.dmSansSemiBold, fontSize: 13, fontWeight: '600', color: colors.text },
 
   amountCard: {
     backgroundColor: colors.card, borderWidth: 1,
@@ -605,22 +601,6 @@ const styles = StyleSheet.create({
   shareAmt: { fontFamily: fonts.syne, fontSize: 14, fontWeight: '800', flexShrink: 0 },
 
   noteText: { fontFamily: fonts.dmSans, fontSize: 13, color: colors.text, lineHeight: 20 },
-
-  entryMetaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 16,
-    paddingHorizontal: 2,
-  },
-  entryMetaAvatar: {
-    width: 24, height: 24, borderRadius: 12,
-    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-  },
-  entryMetaInitials: { fontFamily: fonts.dmSansSemiBold, fontSize: 10, fontWeight: '700' },
-  entryMetaText: { flex: 1 },
-  entryMetaLabel: { fontFamily: fonts.dmSansSemiBold, fontSize: 13, fontWeight: '600', color: colors.text2 },
-  entryMetaTime: { fontFamily: fonts.dmSans, fontSize: 11, color: colors.text3, marginTop: 1 },
 
   emptyComments: {
     fontFamily: fonts.dmSans, fontSize: 13, color: colors.text3,

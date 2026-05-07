@@ -10,6 +10,7 @@ import { supabase } from '@/lib/supabase';
 import { useUserStore } from '@/store/useUserStore';
 import { useGroupStore } from '@/store/useGroupStore';
 import { queryClient } from '@/lib/queryClient';
+import { qk } from '@/lib/queryKeys';
 import type { User } from '@/types/database';
 
 // ─── Session bootstrap ────────────────────────────────────────────────────────
@@ -86,6 +87,8 @@ async function fetchOrCreateUserGroup(userId: string, userName: string | null): 
 
   await supabase.from('group_members').insert({ group_id: group.id, user_id: userId });
   useGroupStore.getState().setCurrentGroupId(group.id);
+  // Invalidate groups cache so the home/insights screens show the personal group immediately
+  queryClient.invalidateQueries({ queryKey: qk.groups.all });
 }
 
 /**
