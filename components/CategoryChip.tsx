@@ -13,15 +13,32 @@ interface CategoryChipProps {
   selected: boolean;
   onPress: () => void;
   inline?: boolean;
+  emojiOnly?: boolean;
   style?: ViewStyle;
 }
 
-export function CategoryChip({ category, selected, onPress, inline = false, style }: CategoryChipProps) {
+export function CategoryChip({ category, selected, onPress, inline = false, emojiOnly = false, style }: CategoryChipProps) {
   const scale = useSharedValue(1);
 
   const animStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
   }));
+
+  if (emojiOnly) {
+    return (
+      <Animated.View style={animStyle}>
+        <TouchableOpacity
+          style={[styles.squareChip, selected && styles.squareSelected]}
+          onPress={onPress}
+          onPressIn={() => { scale.value = withTiming(0.95, { duration: 120 }); }}
+          onPressOut={() => { scale.value = withTiming(1, { duration: 120 }); }}
+          activeOpacity={1}
+        >
+          <Text style={styles.squareEmoji}>{category.emoji}</Text>
+        </TouchableOpacity>
+      </Animated.View>
+    );
+  }
 
   if (inline) {
     return (
@@ -61,6 +78,24 @@ export function CategoryChip({ category, selected, onPress, inline = false, styl
 }
 
 const styles = StyleSheet.create({
+  squareChip: {
+    width: 54,
+    height: 54,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.cardElevated,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.11)',
+  },
+  squareSelected: {
+    backgroundColor: colors.accentDim,
+    borderColor: colors.accentMid,
+  },
+  squareEmoji: {
+    fontSize: 20,
+  },
+
   inlineChip: {
     flexDirection: 'row',
     alignItems: 'center',

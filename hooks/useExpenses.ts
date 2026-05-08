@@ -110,7 +110,8 @@ export interface AddExpenseInput {
   paidBy: string;
   addedBy: string;
   note?: string;
-  splitWith: string[]; // user ids — payer must be included
+  splitWith: string[];               // user ids — payer must be included
+  customSplits?: Record<string, number>; // userId → amount_owed; omit for equal split
 }
 
 async function insertExpenseWithSplits(input: AddExpenseInput) {
@@ -141,7 +142,7 @@ async function insertExpenseWithSplits(input: AddExpenseInput) {
   const splitRows = input.splitWith.map((uid) => ({
     expense_id:  expense.id,
     user_id:     uid,
-    amount_owed: perHead,
+    amount_owed: input.customSplits?.[uid] ?? perHead,
   }));
 
   const { error: splitErr } = await supabase.from('expense_splits').insert(splitRows);
@@ -178,7 +179,7 @@ export function useAddExpense() {
           id: `${tempId}-${uid}`,
           expense_id: tempId,
           user_id: uid,
-          amount_owed: perHead,
+          amount_owed: vars.customSplits?.[uid] ?? perHead,
         })) as any,
         comments: [],
       } as any;
@@ -204,9 +205,10 @@ export interface UpdateExpenseInput {
   title: string;
   amount: number;
   category: string;
-  splitWith: string[]; // re-derives the splits
+  splitWith: string[];
   paidBy: string;
   note?: string | null;
+  customSplits?: Record<string, number>;
 }
 
 export function useUpdateExpense() {
@@ -238,7 +240,7 @@ export function useUpdateExpense() {
       const splitRows = input.splitWith.map((uid) => ({
         expense_id:  input.expenseId,
         user_id:     uid,
-        amount_owed: perHead,
+        amount_owed: input.customSplits?.[uid] ?? perHead,
       }));
       const { error: insErr } = await supabase.from('expense_splits').insert(splitRows);
       if (insErr) throw insErr;

@@ -1,8 +1,9 @@
 import type { MemberLite } from '@/components/ActivityRow';
 import { ActivityRow, SettlementRow } from '@/components/ActivityRow';
 import { BalanceRow } from '@/components/BalanceCard';
+import { CategoryChip } from '@/components/CategoryChip';
 import { CategoryPickerModal } from '@/components/CategoryPickerModal';
-import { PersonChip } from '@/components/PersonChip';
+import { SplitMode, SplitSheet } from '@/components/SplitSheet';
 import { ToastNotification } from '@/components/ToastNotification';
 import {
   formatAmount,
@@ -26,7 +27,6 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
@@ -50,10 +50,10 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function amountFontSize(len: number) {
-  if (len > 8) return 20;
-  if (len > 6) return 24;
-  if (len > 4) return 28;
-  return 34;
+  if (len > 8) return 22;
+  if (len > 6) return 28;
+  if (len > 4) return 34;
+  return 42;
 }
 
 // ─── Add Expense Sheet ────────────────────────────────────────────────────────
@@ -88,8 +88,8 @@ function AddExpenseSheet({
   const { height: screenHeight } = useWindowDimensions();
   const sheetHeight = screenHeight;
 
-  // Animation — slide distance equals the sheet height so it starts fully off-screen
-  const sheetY = useSharedValue(sheetHeight);
+  // Animation
+  const sheetY    = useSharedValue(sheetHeight);
   const overlayOp = useSharedValue(0);
 
   useEffect(() => {
@@ -105,284 +105,354 @@ function AddExpenseSheet({
     setTimeout(onClose, 270);
   }, [onClose, overlayOp, sheetY, sheetHeight]);
 
-  const overlayStyle = useAnimatedStyle(() => ({
-    opacity: overlayOp.value,
-  }));
-  const sheetStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: sheetY.value }],
-  }));
+  const overlayStyle = useAnimatedStyle(() => ({ opacity: overlayOp.value }));
+  const sheetStyle   = useAnimatedStyle(() => ({ transform: [{ translateY: sheetY.value }] }));
 
   // Form state
-  const [amount, setAmount] = useState('');
-  const [title, setTitle] = useState('');
+  const [amount, setAmount]           = useState('');
+  const [title, setTitle]             = useState('');
   const [selectedCatId, setSelectedCatId] = useState(categories[0].id);
-  const [paidBy, setPaidBy] = useState(currentUserId);
+  const [paidBy, setPaidBy]           = useState(currentUserId);
   const [selectedPeople, setSelectedPeople] = useState<Set<string>>(new Set());
+  const [splitMode, setSplitMode]     = useState<SplitMode>('equal');
+  const [customSplits, setCustomSplits] = useState<Record<string, string>>({});
+  const [splitSheetOpen, setSplitSheetOpen] = useState(false);
+  const [paidBySheetOpen, setPaidBySheetOpen] = useState(false);
   const [amountError, setAmountError] = useState('');
-  const [titleError, setTitleError] = useState('');
+  const [titleError, setTitleError]   = useState('');
   const [catPickerOpen, setCatPickerOpen] = useState(false);
+  const [ctaState, setCtaState]       = useState<'idle' | 'success' | 'error'>('idle');
+
+  const ctaScale   = useSharedValue(1);
+  const amountShake = useSharedValue(0);
+
+  const ctaAnimStyle   = useAnimatedStyle(() => ({ transform: [{ scale: ctaScale.value }] }));
+  const amountShakeStyle = useAnimatedStyle(() => ({ transform: [{ translateX: amountShake.value }] }));
 
   const allMembers = members ?? [];
+  const userInitials = currentUserName ? initialsFromName(currentUserName) : 'ME';
 
-  // Default-select all members when they load
   useEffect(() => {
     setSelectedPeople(new Set(allMembers.map(m => m.userId)));
   }, [members?.length]);
 
   const resetForm = useCallback(() => {
-    setAmount('');
-    setTitle('');
+    setAmount(''); setTitle('');
     setSelectedCatId(categories[0].id);
     setPaidBy(currentUserId);
     setSelectedPeople(new Set(allMembers.map(m => m.userId)));
-    setAmountError('');
-    setTitleError('');
+    setSplitMode('equal'); setCustomSplits({});
+    setAmountError(''); setTitleError('');
+    setCtaState('idle');
   }, [currentUserId, allMembers]);
 
-  const handleClose = useCallback(() => {
-    resetForm();
-    closeSheet();
-  }, [resetForm, closeSheet]);
+  const handleClose = useCallback(() => { resetForm(); closeSheet(); }, [resetForm, closeSheet]);
 
-  const ctaScale = useSharedValue(1);
-  const ctaStyle = useAnimatedStyle(() => ({ transform: [{ scale: ctaScale.value }] }));
+  const togglePerson = (id: string) => {
+    setSelectedPeople(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+    if (splitMode !== 'equal') { setSplitMode('equal'); setCustomSplits({}); }
+  };
+
+  const normalised = amount.endsWith('.') ? amount.slice(0, -1) : amount;
+  const parsedAmount = parseAmount(normalised);
+  const fontSize   = amountFontSize(amount.length);
+  const splitCount = selectedPeople.size;
+  const each = parsedAmount > 0 && splitCount > 0 ? parseFloat((parsedAmount / splitCount).toFixed(2)) : 0;
+
+  const resolveCustomSplits = (): Record<string, number> | undefined => {
+    if (splitMode === 'equal') return undefined;
+    const result: Record<string, number> = {};
+    Array.from(selectedPeople).forEach(uid => {
+      const raw = parseFloat(customSplits[uid] ?? '0') || 0;
+      result[uid] = splitMode === 'percentage'
+        ? parseFloat(((raw / 100) * parsedAmount).toFixed(2))
+        : raw;
+    });
+    return result;
+  };
 
   const handleAdd = useCallback(() => {
-    const normalised = amount.endsWith('.') ? amount.slice(0, -1) : amount;
     let hasError = false;
-    if (!isValidAmount(normalised)) { setAmountError('Enter a valid amount'); hasError = true; }
-    if (!title.trim()) { setTitleError('Title is required'); hasError = true; }
-    if (selectedPeople.size === 0) {
-      onSuccess('Select at least one person to split with');
-      return;
+    if (!isValidAmount(normalised)) {
+      setAmountError('Enter a valid amount');
+      amountShake.value = withSequence(
+        withTiming(-8, { duration: 50 }), withTiming(8,  { duration: 50 }),
+        withTiming(-6, { duration: 50 }), withTiming(6,  { duration: 50 }),
+        withTiming(0,  { duration: 50 }),
+      );
+      hasError = true;
     }
+    if (!title.trim()) { setTitleError('Title is required'); hasError = true; }
+    if (selectedPeople.size === 0) { onSuccess('Select at least one person to split with'); return; }
     if (hasError) return;
 
-    ctaScale.value = withSequence(
-      withTiming(0.97, { duration: 100 }),
-      withTiming(1, { duration: 120 }),
-    );
-
-    const parsed = parseAmount(normalised);
-    const splitWith = Array.from(selectedPeople);
+    ctaScale.value = withSequence(withTiming(0.97, { duration: 100 }), withTiming(1, { duration: 120 }));
 
     addExpense.mutate(
       {
         groupId,
         title: title.trim(),
-        amount: parsed,
+        amount: parsedAmount,
         category: selectedCatId,
         paidBy,
         addedBy: currentUserId,
-        splitWith,
+        splitWith: Array.from(selectedPeople),
+        customSplits: resolveCustomSplits(),
       },
       {
         onSuccess: () => {
-          onSuccess(`✓ ${formatAmount(parsed)} added!`);
-          resetForm();
-          closeSheet();
+          setCtaState('success');
+          onSuccess(`✓ ${formatAmount(parsedAmount)} added!`);
+          setTimeout(() => { resetForm(); closeSheet(); }, 900);
         },
         onError: (err: any) => {
+          setCtaState('error');
           onSuccess(`Couldn't save: ${err?.message ?? 'try again'}`);
-          closeSheet();
+          setTimeout(() => setCtaState('idle'), 2000);
         },
       },
     );
-  }, [amount, title, selectedCatId, paidBy, selectedPeople, groupId, currentUserId, addExpense, onSuccess, resetForm, closeSheet, ctaScale]);
+  }, [normalised, parsedAmount, title, selectedCatId, paidBy, selectedPeople, groupId, currentUserId, addExpense, onSuccess, resetForm, closeSheet, ctaScale, amountShake]);
 
-  const fontSize = amountFontSize(amount.length);
-  const splitCount = selectedPeople.size;
-  const parsed = parseAmount(amount.endsWith('.') ? amount.slice(0, -1) : amount);
-  const each = parsed > 0 && splitCount > 0 ? parseFloat((parsed / splitCount).toFixed(2)) : 0;
-
-  const userInitials = currentUserName ? initialsFromName(currentUserName) : 'ME';
+  const isMoreSel = !categories.slice(0, 8).find(c => c.id === selectedCatId);
+  const moreCat   = isMoreSel ? categories.find(c => c.id === selectedCatId) : null;
 
   if (!visible) return null;
 
   return (
     <Modal visible transparent animationType="none" onRequestClose={handleClose}>
-      {/* Backdrop */}
       <Animated.View style={[StyleSheet.absoluteFill, sheetStyles.overlay, overlayStyle]}>
         <Pressable style={{ flex: 1 }} onPress={handleClose} />
       </Animated.View>
 
-      {/* Sheet — fixed height so ScrollView inside can actually scroll */}
-      <Animated.View
-        style={[
-          sheetStyles.sheet,
-          { height: sheetHeight, paddingTop: insets.top, paddingBottom: insets.bottom + 12 },
-          sheetStyle,
-        ]}
-      >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={{ flex: 1 }}
-        >
-          {/* Drag handle */}
-          <View style={sheetStyles.handle} />
+      <Animated.View style={[sheetStyles.sheet, { height: sheetHeight, paddingTop: insets.top }, sheetStyle]}>
 
-          {/* Header */}
-          <View style={sheetStyles.sheetHeader}>
-            <View style={sheetStyles.groupBadge}>
-              <Text style={sheetStyles.groupBadgeText}>{groupEmoji} {groupName}</Text>
+        {/* Header */}
+        <View style={sheetStyles.sheetHeader}>
+          <View style={sheetStyles.groupBadge}>
+            <Text style={sheetStyles.groupBadgeText}>{groupEmoji} {groupName}</Text>
+          </View>
+          <Text style={sheetStyles.sheetTitle}>Add Expense</Text>
+          <TouchableOpacity style={sheetStyles.closeBtn} onPress={handleClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Ionicons name="close" size={18} color={colors.text2} />
+          </TouchableOpacity>
+        </View>
+
+        {/* Scrollable content */}
+        <ScrollView
+          style={sheetStyles.scroll}
+          contentContainerStyle={sheetStyles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+        >
+          {/* Amount — hero */}
+          <Animated.View style={[sheetStyles.amountSection, amountShakeStyle]}>
+            <View style={sheetStyles.amountRow}>
+              <Text style={[sheetStyles.rupee, { fontSize: fontSize * 0.7, lineHeight: fontSize * 1.15 }]}>₹</Text>
+              <TextInput
+                style={[sheetStyles.amountInput, { fontSize }]}
+                value={amount}
+                onChangeText={t => { setAmount(sanitizeAmountInput(t)); if (amountError) setAmountError(''); }}
+                keyboardType="decimal-pad"
+                autoFocus
+                selectionColor={colors.accent}
+                placeholderTextColor={colors.text3}
+                placeholder="0"
+              />
             </View>
-            <Text style={sheetStyles.sheetTitle}>Add Expense</Text>
-            <TouchableOpacity
-              style={sheetStyles.closeBtn}
-              onPress={handleClose}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
-              <Ionicons name="close" size={18} color={colors.text2} />
-            </TouchableOpacity>
+            {!!amountError && <Text style={sheetStyles.fieldErrorCenter}>{amountError}</Text>}
+          </Animated.View>
+
+          {/* Title — bare centered subtitle */}
+          <View style={sheetStyles.titleSection}>
+            <TextInput
+              style={[sheetStyles.titleInput, !!titleError && sheetStyles.titleInputError]}
+              value={title}
+              onChangeText={t => { setTitle(t); if (titleError) setTitleError(''); }}
+              placeholder="What's this for?"
+              placeholderTextColor={colors.text3}
+              selectionColor={colors.accent}
+              returnKeyType="done"
+              maxLength={60}
+              textAlign="center"
+            />
+            {!!titleError && <Text style={sheetStyles.fieldErrorCenter}>{titleError}</Text>}
           </View>
 
-          <ScrollView
-            style={sheetStyles.scroll}
-            contentContainerStyle={sheetStyles.scrollContent}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-          >
-            {/* Amount */}
-            <View style={sheetStyles.amountSection}>
-              <View style={sheetStyles.amountBox}>
-                <Text style={[sheetStyles.rupee, { fontSize: fontSize * 0.6, lineHeight: fontSize }]}>₹</Text>
-                <TextInput
-                  style={[sheetStyles.amountInput, { fontSize }]}
-                  value={amount}
-                  onChangeText={t => { setAmount(sanitizeAmountInput(t)); if (amountError) setAmountError(''); }}
-                  keyboardType="decimal-pad"
-                  autoFocus
-                  selectionColor={colors.accent}
-                  placeholderTextColor={colors.text3}
-                  placeholder="0"
-                />
-              </View>
-              {!!amountError && <Text style={sheetStyles.fieldError}>{amountError}</Text>}
-            </View>
-
-            {/* Title */}
-            <View style={sheetStyles.section}>
-              <Text style={sheetStyles.sectionLabel}>TITLE *</Text>
-              <View style={[sheetStyles.inputBox, !!titleError && sheetStyles.inputError]}>
-                <TextInput
-                  style={sheetStyles.inputText}
-                  value={title}
-                  onChangeText={t => { setTitle(t); if (titleError) setTitleError(''); }}
-                  placeholder="What's this for?"
-                  placeholderTextColor={colors.text3}
-                  selectionColor={colors.accent}
-                  returnKeyType="done"
-                  maxLength={60}
-                />
-              </View>
-              {!!titleError && <Text style={sheetStyles.fieldError}>{titleError}</Text>}
-            </View>
+          {/* Details card */}
+          <View style={sheetStyles.detailsCard}>
 
             {/* Category */}
-            <View style={sheetStyles.section}>
-              <Text style={sheetStyles.sectionLabel}>CATEGORY</Text>
-              <View style={sheetStyles.catGrid}>
-                {categories.slice(0, 8).map(cat => {
-                  const selected = selectedCatId === cat.id;
+            <View style={sheetStyles.cardRow}>
+              <Text style={sheetStyles.cardRowLabel}>CATEGORY</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={sheetStyles.hChipsContent}>
+                {categories.slice(0, 8).map(cat => (
+                  <CategoryChip
+                    key={cat.id}
+                    category={cat}
+                    selected={selectedCatId === cat.id}
+                    onPress={() => setSelectedCatId(cat.id)}
+                    emojiOnly
+                  />
+                ))}
+                <TouchableOpacity
+                  style={[sheetStyles.moreCatChip, isMoreSel && sheetStyles.moreCatChipSelected]}
+                  onPress={() => setCatPickerOpen(true)}
+                >
+                  <Text style={[sheetStyles.moreCatText, isMoreSel && sheetStyles.moreCatTextSelected]}>
+                    {moreCat ? `${moreCat.emoji} ${moreCat.label}` : 'More +'}
+                  </Text>
+                </TouchableOpacity>
+              </ScrollView>
+              {(() => {
+                const sel = categories.find(c => c.id === selectedCatId);
+                return sel ? <Text style={sheetStyles.catSelectedLabel}>{sel.emoji}  {sel.label}</Text> : null;
+              })()}
+            </View>
+
+            {/* Paid By */}
+            {allMembers.length > 0 && (() => {
+              const payer = allMembers.find(m => m.userId === paidBy) ?? allMembers[0];
+              const av = avatarColors[payer.avatarColor] ?? avatarColors.green;
+              return (
+                <>
+                  <View style={sheetStyles.cardDivider} />
+                  <TouchableOpacity style={sheetStyles.paidByRow} onPress={() => setPaidBySheetOpen(true)} activeOpacity={0.7}>
+                    <Text style={sheetStyles.cardRowLabel}>PAID BY</Text>
+                    <View style={sheetStyles.paidByRight}>
+                      <View style={[sheetStyles.paidByAvatar, { backgroundColor: av.bg }]}>
+                        <Text style={[sheetStyles.paidByAvatarText, { color: av.text }]}>
+                          {payer.userId === currentUserId ? userInitials : payer.initials}
+                        </Text>
+                      </View>
+                      <Text style={sheetStyles.paidByName}>{payer.userId === currentUserId ? 'You' : payer.name}</Text>
+                      <Text style={sheetStyles.paidByChevron}>›</Text>
+                    </View>
+                  </TouchableOpacity>
+                </>
+              );
+            })()}
+
+            {/* Split With */}
+            <View style={sheetStyles.cardDivider} />
+            <View style={sheetStyles.cardRow}>
+              <View style={sheetStyles.splitWithHeader}>
+                <Text style={sheetStyles.cardRowLabel}>SPLIT WITH</Text>
+                <TouchableOpacity
+                  style={[sheetStyles.splitPill, splitMode !== 'equal' && sheetStyles.splitPillActive]}
+                  onPress={() => setSplitSheetOpen(true)}
+                  activeOpacity={0.7}
+                  disabled={selectedPeople.size === 0}
+                >
+                  <Text style={[sheetStyles.splitPillText, splitMode !== 'equal' && sheetStyles.splitPillTextActive]}>
+                    {splitMode === 'equal' ? '= Equal' : splitMode === 'amount' ? '≠ Amount' : '≠ %'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              <View style={sheetStyles.avatarCircleRow}>
+                {allMembers.map(m => {
+                  const av = avatarColors[m.avatarColor] ?? avatarColors.green;
+                  const selected = selectedPeople.has(m.userId);
+                  const splitAmt = selected
+                    ? splitMode === 'equal' ? each
+                      : splitMode === 'percentage'
+                        ? parseFloat(((parseFloat(customSplits[m.userId] ?? '0') / 100) * parsedAmount).toFixed(2))
+                        : parseFloat(customSplits[m.userId] ?? '0')
+                    : 0;
                   return (
-                    <TouchableOpacity
-                      key={cat.id}
-                      style={[sheetStyles.catChip, selected && sheetStyles.catChipOn]}
-                      onPress={() => setSelectedCatId(cat.id)}
-                      activeOpacity={0.75}
-                    >
-                      <Text style={sheetStyles.catChipEmoji}>{cat.emoji}</Text>
-                      <Text style={[sheetStyles.catChipLabel, selected && sheetStyles.catChipLabelOn]}>
-                        {cat.label}
+                    <TouchableOpacity key={m.userId} style={sheetStyles.avatarCircleItem} onPress={() => togglePerson(m.userId)} activeOpacity={0.75}>
+                      <View style={[sheetStyles.avatarCircle, { backgroundColor: selected ? av.bg : colors.cardElevated }, selected && sheetStyles.avatarCircleOn]}>
+                        <Text style={[sheetStyles.avatarCircleText, { color: selected ? av.text : colors.text3 }]}>
+                          {m.userId === currentUserId ? userInitials : m.initials}
+                        </Text>
+                      </View>
+                      <Text style={[sheetStyles.avatarCircleAmt, !selected && sheetStyles.avatarCircleAmtDim]}>
+                        {selected && splitAmt > 0 ? formatAmount(splitAmt) : '—'}
                       </Text>
                     </TouchableOpacity>
                   );
                 })}
-                {(() => {
-                  const isMoreSel = !categories.slice(0, 8).find(c => c.id === selectedCatId);
-                  const moreCat = isMoreSel ? categories.find(c => c.id === selectedCatId) : null;
-                  return (
-                    <TouchableOpacity
-                      style={[sheetStyles.moreCatChip, isMoreSel && sheetStyles.catChipOn]}
-                      onPress={() => setCatPickerOpen(true)}
-                      activeOpacity={0.75}
-                    >
-                      <Text style={[sheetStyles.moreCatText, isMoreSel && sheetStyles.catChipLabelOn]}>
-                        {moreCat ? `${moreCat.emoji} ${moreCat.label}` : 'More +'}
+              </View>
+            </View>
+
+          </View>
+        </ScrollView>
+
+        {/* Pinned CTA */}
+        <View style={[sheetStyles.footer, { paddingBottom: insets.bottom + 8 }]}>
+          <Animated.View style={ctaAnimStyle}>
+            <TouchableOpacity
+              style={[
+                sheetStyles.cta,
+                ctaState === 'success' && sheetStyles.ctaSuccess,
+                ctaState === 'error'   && sheetStyles.ctaError,
+                (addExpense.isPending || ctaState !== 'idle') && { opacity: ctaState === 'idle' ? 0.5 : 1 },
+                parsedAmount === 0 && ctaState === 'idle' && { opacity: 0.5 },
+              ]}
+              onPress={handleAdd}
+              activeOpacity={0.85}
+              disabled={addExpense.isPending || ctaState !== 'idle'}
+            >
+              <Text style={sheetStyles.ctaText}>
+                {ctaState === 'success' ? '✓ Added!' :
+                 ctaState === 'error'   ? 'Failed — try again' :
+                 addExpense.isPending   ? 'Saving…' : 'Add Expense →'}
+              </Text>
+            </TouchableOpacity>
+          </Animated.View>
+        </View>
+
+        {/* Paid By picker */}
+        <Modal visible={paidBySheetOpen} transparent animationType="slide" onRequestClose={() => setPaidBySheetOpen(false)}>
+          <View style={sheetStyles.pickerRoot}>
+            <Pressable style={sheetStyles.pickerBackdrop} onPress={() => setPaidBySheetOpen(false)} />
+            <View style={sheetStyles.pickerContainer}>
+              <View style={sheetStyles.pickerHandle} />
+              <Text style={sheetStyles.pickerTitle}>Paid by</Text>
+              {allMembers.map(m => {
+                const av = avatarColors[m.avatarColor] ?? avatarColors.green;
+                const isSelected = paidBy === m.userId;
+                return (
+                  <TouchableOpacity
+                    key={m.userId}
+                    style={[sheetStyles.pickerRow, isSelected && sheetStyles.pickerRowSelected]}
+                    onPress={() => { setPaidBy(m.userId); setPaidBySheetOpen(false); }}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[sheetStyles.pickerAvatar, { backgroundColor: av.bg }]}>
+                      <Text style={[sheetStyles.pickerAvatarText, { color: av.text }]}>
+                        {m.userId === currentUserId ? userInitials : m.initials}
                       </Text>
-                    </TouchableOpacity>
-                  );
-                })()}
-              </View>
+                    </View>
+                    <Text style={[sheetStyles.pickerRowName, isSelected && sheetStyles.pickerRowNameSelected]}>
+                      {m.userId === currentUserId ? 'You' : m.name}
+                    </Text>
+                    {isSelected && <Text style={sheetStyles.pickerCheck}>✓</Text>}
+                  </TouchableOpacity>
+                );
+              })}
             </View>
+          </View>
+        </Modal>
 
-            {/* Paid By */}
-            <View style={sheetStyles.section}>
-              <Text style={sheetStyles.sectionLabel}>PAID BY</Text>
-              <View style={sheetStyles.chipWrap}>
-                {allMembers.map(m => (
-                  <PersonChip
-                    key={m.userId}
-                    label={m.userId === currentUserId ? 'You' : m.name}
-                    selected={paidBy === m.userId}
-                    onPress={() => setPaidBy(m.userId)}
-                    initials={m.userId === currentUserId ? userInitials : m.initials}
-                    avatarColor={m.avatarColor}
-                  />
-                ))}
-              </View>
-            </View>
+        <CategoryPickerModal visible={catPickerOpen} selectedId={selectedCatId} onSelect={setSelectedCatId} onClose={() => setCatPickerOpen(false)} />
 
-            {/* Split With */}
-            <View style={sheetStyles.section}>
-              <Text style={sheetStyles.sectionLabel}>SPLIT WITH</Text>
-              <View style={sheetStyles.chipWrap}>
-                {allMembers.map(m => (
-                  <PersonChip
-                    key={m.userId}
-                    label={m.userId === currentUserId ? 'You' : m.name}
-                    selected={selectedPeople.has(m.userId)}
-                    onPress={() => setSelectedPeople(prev => {
-                      const next = new Set(prev);
-                      if (next.has(m.userId)) next.delete(m.userId);
-                      else next.add(m.userId);
-                      return next;
-                    })}
-                    initials={m.userId === currentUserId ? userInitials : m.initials}
-                    avatarColor={m.avatarColor}
-                  />
-                ))}
-              </View>
-              {each > 0 && selectedPeople.size > 0 && (
-                <View style={sheetStyles.splitHintRow}>
-                  <Text style={sheetStyles.splitHint}>
-                    Each pays {formatAmount(each)} · {splitCount} people
-                  </Text>
-                </View>
-              )}
-            </View>
-
-            {/* CTA */}
-            <Animated.View style={ctaStyle}>
-              <TouchableOpacity
-                style={[sheetStyles.cta, addExpense.isPending && { opacity: 0.5 }]}
-                onPress={handleAdd}
-                activeOpacity={0.85}
-                disabled={addExpense.isPending}
-              >
-                <Text style={sheetStyles.ctaText}>
-                  {addExpense.isPending ? 'Saving…' : 'Add Expense →'}
-                </Text>
-              </TouchableOpacity>
-            </Animated.View>
-          </ScrollView>
-        </KeyboardAvoidingView>
-
-        <CategoryPickerModal
-          visible={catPickerOpen}
-          selectedId={selectedCatId}
-          onSelect={setSelectedCatId}
-          onClose={() => setCatPickerOpen(false)}
+        <SplitSheet
+          visible={splitSheetOpen}
+          onClose={() => setSplitSheetOpen(false)}
+          members={allMembers
+            .filter(m => selectedPeople.has(m.userId))
+            .map(m => ({ id: m.userId, name: m.userId === currentUserId ? (currentUserName ?? 'You') : m.name, avatar_color: m.avatarColor })) as any}
+          totalAmount={parsedAmount}
+          mode={splitMode}
+          splits={customSplits}
+          currentUserId={currentUserId}
+          onConfirm={(mode, splits) => { setSplitMode(mode); setCustomSplits(splits); setSplitSheetOpen(false); }}
         />
       </Animated.View>
     </Modal>
@@ -649,175 +719,151 @@ export default function GroupDetailScreen() {
 // ─── Sheet Styles ─────────────────────────────────────────────────────────────
 
 const sheetStyles = StyleSheet.create({
-  overlay: {
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    flex: 1,
-  },
+  overlay: { backgroundColor: 'rgba(0,0,0,0.6)', flex: 1 },
   sheet: {
     position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
+    left: 0, right: 0, bottom: 0,
     backgroundColor: colors.bg,
   },
-  handle: { height: 0 },
+
+  // Header
   sheetHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.06)',
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 20, paddingVertical: 14,
+    borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.06)',
   },
   groupBadge: {
     backgroundColor: 'rgba(0,212,154,0.10)',
-    borderWidth: 1,
-    borderColor: 'rgba(0,212,154,0.22)',
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    borderWidth: 1, borderColor: 'rgba(0,212,154,0.22)',
+    borderRadius: 10, paddingHorizontal: 10, paddingVertical: 4,
   },
-  groupBadgeText: {
-    fontFamily: fonts.dmSansSemiBold,
-    fontSize: 11,
-    color: colors.accent,
-  },
-  sheetTitle: {
-    flex: 1,
-    textAlign: 'center',
-    fontFamily: fonts.syne,
-    fontSize: 16,
-    color: colors.text,
-  },
+  groupBadgeText: { fontFamily: fonts.dmSansSemiBold, fontSize: 11, color: colors.accent },
+  sheetTitle: { flex: 1, textAlign: 'center', fontFamily: fonts.syne, fontSize: 16, color: colors.text },
   closeBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
-    backgroundColor: colors.cardElevated,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: 32, height: 32, borderRadius: 10,
+    backgroundColor: colors.cardElevated, borderWidth: 1, borderColor: colors.border,
+    alignItems: 'center', justifyContent: 'center',
   },
+
   scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: 20, paddingTop: 4, paddingBottom: 16 },
+  scrollContent: { paddingHorizontal: 22, paddingTop: 8, paddingBottom: 20 },
 
-  amountSection: { alignItems: 'center', marginVertical: 16 },
-  amountBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.cardElevated,
-    borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.11)',
-    borderRadius: 18,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    alignSelf: 'stretch',
-    gap: 4,
-  },
-  rupee: {
-    fontFamily: fonts.syne,
-    fontWeight: '800',
-    color: colors.text2,
-    flexShrink: 0,
-  },
+  // Amount hero
+  amountSection: { alignItems: 'center', paddingVertical: 10, marginBottom: 4 },
+  amountRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  rupee: { fontFamily: fonts.syne, fontWeight: '800', color: colors.text2, flexShrink: 0 },
   amountInput: {
-    fontFamily: fonts.syne,
-    fontWeight: '800',
-    color: colors.text,
-    flex: 1,
-    padding: 0,
-    textAlign: 'center',
-    minWidth: 0,
+    fontFamily: fonts.syne, fontWeight: '800', color: colors.text,
+    padding: 0, margin: 0, minWidth: 48,
   },
-  fieldError: {
-    fontFamily: fonts.dmSans,
-    fontSize: 11,
-    color: colors.danger,
-    marginTop: 5,
-    alignSelf: 'flex-start',
+  fieldErrorCenter: {
+    fontFamily: fonts.dmSans, fontSize: 11, color: colors.danger,
+    marginTop: 8, textAlign: 'center',
   },
 
-  section: { marginBottom: 18 },
-  sectionLabel: {
-    fontFamily: fonts.dmSansSemiBold,
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-    color: colors.text2,
-    marginBottom: 10,
+  // Title
+  titleSection: { marginBottom: 20 },
+  titleInput: {
+    fontFamily: fonts.dmSansSemiBold, fontSize: 16, fontWeight: '600',
+    color: colors.text, textAlign: 'center', paddingVertical: 0, paddingHorizontal: 24,
   },
-  inputBox: {
-    backgroundColor: colors.cardElevated,
-    borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.11)',
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-  },
-  inputError: { borderColor: colors.danger },
-  inputText: {
-    fontFamily: fonts.dmSansSemiBold,
-    fontSize: 14,
-    color: colors.text,
-    padding: 0,
-  },
+  titleInputError: { color: colors.danger },
 
-  catGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  catChip: {
-    alignItems: 'center', justifyContent: 'center', gap: 5,
-    paddingVertical: 10, paddingHorizontal: 8, borderRadius: 14,
-    backgroundColor: colors.cardElevated, borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.11)', minHeight: 60, width: '30.5%',
+  // Details card
+  detailsCard: {
+    backgroundColor: colors.card, borderRadius: 22,
+    borderWidth: 1, borderColor: colors.border,
+    overflow: 'hidden', marginBottom: 20,
   },
-  catChipOn: { backgroundColor: colors.accentDim, borderColor: colors.accentMid },
-  catChipEmoji: { fontSize: 18 },
-  catChipLabel: { fontFamily: fonts.dmSansSemiBold, fontSize: 10, color: colors.text2, textAlign: 'center' },
-  catChipLabelOn: { color: colors.accent },
+  cardRow: { paddingHorizontal: 18, paddingVertical: 16, gap: 10 },
+  cardRowLabel: {
+    fontFamily: fonts.dmSansSemiBold, fontSize: 10, fontWeight: '700',
+    letterSpacing: 1, textTransform: 'uppercase', color: colors.text2,
+  },
+  cardDivider: { height: 1, backgroundColor: colors.border },
+  hChipsContent: { gap: 8, paddingBottom: 2 },
+  catSelectedLabel: { fontFamily: fonts.dmSansSemiBold, fontSize: 12, fontWeight: '600', color: colors.accent },
+
   moreCatChip: {
-    width: '30.5%', minHeight: 60, alignItems: 'center', justifyContent: 'center',
-    paddingHorizontal: 8, borderRadius: 14,
-    backgroundColor: colors.cardElevated, borderWidth: 1, borderColor: 'rgba(255,255,255,0.11)',
+    alignItems: 'center', justifyContent: 'center',
+    paddingHorizontal: 8, paddingVertical: 7,
+    borderRadius: 14, backgroundColor: colors.cardElevated,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.11)', minHeight: 36,
   },
-  moreCatText: { fontFamily: fonts.dmSansSemiBold, fontSize: 11, color: colors.text2, textAlign: 'center' },
-  chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  moreCatChipSelected: { backgroundColor: colors.accentDim, borderColor: colors.accentMid },
+  moreCatText: { fontFamily: fonts.dmSansSemiBold, fontSize: 11, fontWeight: '600', color: colors.text2, textAlign: 'center' },
+  moreCatTextSelected: { color: colors.accent },
 
-  splitHintRow: {
-    marginTop: 10,
-    backgroundColor: colors.accentDim,
-    borderWidth: 1,
-    borderColor: colors.accentMid,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    alignSelf: 'flex-start',
+  // Paid By row
+  paidByRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 18, paddingVertical: 16, minHeight: 68,
   },
-  splitHint: {
-    fontFamily: fonts.dmSansSemiBold,
-    fontSize: 12,
-    color: colors.accent,
-  },
+  paidByRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  paidByAvatar: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  paidByAvatarText: { fontFamily: fonts.dmSansSemiBold, fontSize: 11, fontWeight: '700' },
+  paidByName: { fontFamily: fonts.dmSansSemiBold, fontSize: 13, fontWeight: '600', color: colors.text },
+  paidByChevron: { fontFamily: fonts.dmSans, fontSize: 18, color: colors.text3, lineHeight: 20 },
 
+  // Split With
+  splitWithHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  splitPill: {
+    paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20,
+    backgroundColor: colors.cardElevated, borderWidth: 1, borderColor: colors.borderEmphasis,
+  },
+  splitPillActive:     { backgroundColor: colors.accentDim, borderColor: colors.accentMid },
+  splitPillText:       { fontFamily: fonts.dmSansSemiBold, fontSize: 11, fontWeight: '600', color: colors.text2 },
+  splitPillTextActive: { color: colors.accent },
+  avatarCircleRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  avatarCircleItem: { alignItems: 'center', gap: 5 },
+  avatarCircle: {
+    width: 44, height: 44, borderRadius: 22,
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1.5, borderColor: 'transparent',
+  },
+  avatarCircleOn: { borderColor: colors.borderEmphasis },
+  avatarCircleText: { fontFamily: fonts.dmSansSemiBold, fontSize: 13, fontWeight: '700' },
+  avatarCircleAmt: { fontFamily: fonts.dmSansSemiBold, fontSize: 10, fontWeight: '600', color: colors.accent },
+  avatarCircleAmtDim: { color: colors.text3 },
+
+  // Pinned footer + CTA
+  footer: {
+    paddingHorizontal: 22, paddingTop: 10,
+    borderTopWidth: 1, borderTopColor: colors.border,
+    backgroundColor: colors.bg,
+  },
   cta: {
-    backgroundColor: colors.accent,
-    borderRadius: 16,
-    height: 52,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: colors.accent,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.28,
-    shadowRadius: 16,
-    elevation: 10,
-    marginTop: 4,
+    backgroundColor: colors.accent, borderRadius: 14, height: 46,
+    alignItems: 'center', justifyContent: 'center',
+    shadowColor: colors.accent, shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.28, shadowRadius: 16, elevation: 10,
   },
-  ctaText: {
-    fontFamily: fonts.syne,
-    fontSize: 15,
-    fontWeight: '800',
-    color: '#000',
+  ctaSuccess: { backgroundColor: '#00b87a', shadowColor: '#00b87a' },
+  ctaError:   { backgroundColor: colors.danger, shadowColor: colors.danger },
+  ctaText: { fontFamily: fonts.syne, fontSize: 15, fontWeight: '800', color: '#000' },
+
+  // Paid By picker sheet
+  pickerRoot:      { flex: 1, justifyContent: 'flex-end' },
+  pickerBackdrop:  { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.65)' },
+  pickerContainer: {
+    backgroundColor: colors.card, borderTopLeftRadius: 28, borderTopRightRadius: 28,
+    borderWidth: 1, borderColor: colors.borderEmphasis, paddingTop: 12, paddingHorizontal: 20,
   },
+  pickerHandle: {
+    width: 36, height: 4, borderRadius: 2,
+    backgroundColor: colors.border, alignSelf: 'center', marginBottom: 20,
+  },
+  pickerTitle: { fontFamily: fonts.syne, fontSize: 16, fontWeight: '800', color: colors.text, marginBottom: 16 },
+  pickerRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    paddingVertical: 12, paddingHorizontal: 14, borderRadius: 14,
+  },
+  pickerRowSelected: { backgroundColor: colors.accentDim },
+  pickerAvatar: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
+  pickerAvatarText: { fontFamily: fonts.dmSansSemiBold, fontSize: 13, fontWeight: '700' },
+  pickerRowName: { flex: 1, fontFamily: fonts.dmSansSemiBold, fontSize: 14, fontWeight: '600', color: colors.text },
+  pickerRowNameSelected: { color: colors.accent },
+  pickerCheck: { fontFamily: fonts.dmSansSemiBold, fontSize: 14, color: colors.accent },
 });
 
 // ─── Screen Styles ────────────────────────────────────────────────────────────

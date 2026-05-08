@@ -1,26 +1,33 @@
-import {
-  View, Text, StyleSheet, TouchableOpacity, ScrollView,
-  Platform, TextInput, KeyboardAvoidingView, ActivityIndicator,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { useRef, useState } from 'react';
-import { colors, avatarColors } from '@/constants/colors';
-import { fonts } from '@/constants/typography';
-import { categories } from '@/constants/sampleData';
 import { formatAmount, formatDisplayName } from '@/constants/amountUtils';
+import { avatarColors, colors } from '@/constants/colors';
 import { initialsFromName } from '@/constants/dateFormat';
-import type { ExpenseComment, User, AvatarColor } from '@/types/database';
+import { categories } from '@/constants/sampleData';
+import { fonts } from '@/constants/typography';
+import { useAddComment, useDeleteExpense, useExpense } from '@/hooks/useExpenses';
+import { useMembers } from '@/hooks/useMembers';
 import { DEV_USER_ID } from '@/lib/auth';
 import { useGroupStore } from '@/store/useGroupStore';
 import { useUserStore } from '@/store/useUserStore';
-import { useExpense, useDeleteExpense, useAddComment } from '@/hooks/useExpenses';
-import { useMembers } from '@/hooks/useMembers';
+import type { AvatarColor, ExpenseComment, User } from '@/types/database';
+import { Ionicons } from '@expo/vector-icons';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-type NetType = 'lent' | 'owed' | 'personal';
+type NetType = 'lent' | 'owed' | 'personal' | 'uninvolved';
 
 function formatDateTime(iso: string | null): { date: string; time: string } | null {
   if (!iso) return null;
@@ -37,25 +44,20 @@ function formatTime(iso: string): string {
   }).toUpperCase();
 }
 
-const NET_COLORS: Record<NetType, { main: string; dim: string; bg: string; border: string }> = {
-  lent:     { main: colors.accent, dim: 'rgba(0,212,154,0.70)',  bg: 'rgba(0,212,154,0.10)',  border: 'rgba(0,212,154,0.25)'  },
-  owed:     { main: colors.danger, dim: 'rgba(255,89,89,0.70)',  bg: 'rgba(255,89,89,0.10)',  border: 'rgba(255,89,89,0.25)'  },
-  personal: { main: colors.text,   dim: colors.text2,            bg: 'transparent',            border: 'transparent'           },
+const NET_COLORS: Record<NetType, { main: string; dim: string; bg: string }> = {
+  lent:       { main: colors.accent, dim: 'rgba(0,212,154,0.60)', bg: colors.accentDim   },
+  owed:       { main: colors.danger, dim: 'rgba(255,89,89,0.60)', bg: colors.dangerDim   },
+  personal:   { main: colors.text,   dim: colors.text2,           bg: 'transparent'      },
+  uninvolved: { main: colors.text3,  dim: colors.text3,           bg: 'transparent'      },
 };
 
 const NET_LABELS: Record<NetType, string> = {
-  lent: 'you lent', owed: 'you owe', personal: '',
+  lent: 'you lent', owed: 'you owe', personal: '', uninvolved: 'not involved',
 };
 
 // ─── Comment bubble ───────────────────────────────────────────────────────────
 
-function CommentBubble({
-  comment, memberMap, currentUserId,
-}: {
-  comment: ExpenseComment;
-  memberMap: Map<string, User>;
-  currentUserId: string;
-}) {
+function CommentBubble({ comment, memberMap, currentUserId }: { comment: ExpenseComment; memberMap: Map<string, User>; currentUserId: string }) {
   const isMe = comment.user_id === currentUserId;
   const member = memberMap.get(comment.user_id);
   if (!member) return null;
@@ -98,8 +100,14 @@ const bubbleStyles = StyleSheet.create({
     fontFamily: fonts.dmSansSemiBold, fontSize: 12, fontWeight: '700',
     color: colors.text2, marginBottom: 3,
   },
-  messageText: { fontFamily: fonts.dmSans, fontSize: 13, color: colors.text, lineHeight: 18 },
-  timestamp: { fontFamily: fonts.dmSans, fontSize: 11, color: colors.text3, marginTop: 4, textAlign: 'right' },
+  messageText: {
+    fontFamily: fonts.dmSans, fontSize: 13,
+    color: colors.text, lineHeight: 18,
+  },
+  timestamp: {
+    fontFamily: fonts.dmSans, fontSize: 11,
+    color: colors.text3, marginTop: 4, textAlign: 'right',
+  },
 });
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
@@ -111,6 +119,8 @@ export default function ExpenseDetailScreen() {
   const currentUserId = useUserStore(s => s.currentUserId) ?? DEV_USER_ID;
 
   const { data: expense, isLoading } = useExpense(id);
+  // Use the expense's own group_id so member names resolve correctly regardless
+  // of which group the user navigated from.
   const { data: members = [] } = useMembers(expense?.group_id ?? groupId);
   const deleteExpense = useDeleteExpense();
   const addComment = useAddComment();
@@ -120,10 +130,11 @@ export default function ExpenseDetailScreen() {
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const deleteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Loading state
   if (isLoading && !expense) {
     return (
       <SafeAreaView style={styles.safe} edges={['top']}>
-        <View style={styles.centred}>
+        <View style={styles.notFound}>
           <ActivityIndicator color={colors.text2} />
         </View>
       </SafeAreaView>
@@ -133,7 +144,7 @@ export default function ExpenseDetailScreen() {
   if (!expense) {
     return (
       <SafeAreaView style={styles.safe} edges={['top']}>
-        <View style={styles.centred}>
+        <View style={styles.notFound}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
             <Ionicons name="chevron-back" size={20} color={colors.text} />
           </TouchableOpacity>
@@ -143,7 +154,7 @@ export default function ExpenseDetailScreen() {
     );
   }
 
-  // ── Derived data ──────────────────────────────────────────────────────────
+  // ── Derived data ──
   const memberMap = new Map<string, User>(members.map(m => [m.id, m]));
   const category = expense.category ? categories.find(c => c.id === expense.category) : null;
   const emoji = category?.emoji ?? '📦';
@@ -151,24 +162,25 @@ export default function ExpenseDetailScreen() {
   const adder = expense.added_by ? memberMap.get(expense.added_by) : null;
 
   const splits = expense.splits ?? [];
-  const splitMembers = splits.map(s => memberMap.get(s.user_id)).filter((m): m is User => !!m);
-  const nonPayerMembers = splitMembers.filter(m => m.id !== expense.paid_by);
+  const splitMap = new Map(splits.map(s => [s.user_id, s.amount_owed]));
+  const splitMembers = splits
+    .map(s => memberMap.get(s.user_id))
+    .filter((m): m is User => !!m);
 
-  const perPerson = splits.length > 0
-    ? parseFloat((expense.amount / splits.length).toFixed(2))
-    : expense.amount;
-
+  const myShare = splitMap.get(currentUserId) ?? 0;
   const isPersonal = splitMembers.length <= 1;
+  const isEqual = splits.length > 0 && splits.every(s => Math.abs(s.amount_owed - splits[0].amount_owed) < 0.01);
   const isYouPaid = expense.paid_by === currentUserId;
 
+  // Compute net
   const net: { type: NetType; amount: number } = (() => {
     const otherSplits = splits.filter(s => s.user_id !== currentUserId);
-    const myShare = splits.find(s => s.user_id === currentUserId)?.amount_owed ?? 0;
     if (otherSplits.length === 0) return { type: 'personal', amount: expense.amount };
     if (isYouPaid) {
       const lent = otherSplits.reduce((sum, s) => sum + s.amount_owed, 0);
       return { type: 'lent', amount: parseFloat(lent.toFixed(2)) };
     }
+    if (myShare === 0) return { type: 'uninvolved', amount: 0 };
     return { type: 'owed', amount: myShare };
   })();
   const netColor = NET_COLORS[net.type];
@@ -177,9 +189,7 @@ export default function ExpenseDetailScreen() {
   const updatedFmt = formatDateTime(expense.updated_at);
   const comments = expense.comments ?? [];
 
-  const avFor = (m: User) => avatarColors[(m.avatar_color ?? 'green') as AvatarColor] ?? avatarColors.green;
-
-  // ── Handlers ─────────────────────────────────────────────────────────────
+  // ── Handlers ──
   const handleDelete = () => {
     if (!deleteConfirm) {
       setDeleteConfirm(true);
@@ -189,7 +199,7 @@ export default function ExpenseDetailScreen() {
     }
     deleteExpense.mutate(
       { expenseId: expense.id, groupId: expense.group_id },
-      { onSuccess: () => router.back() },
+      { onSuccess: () => router.back() }
     );
   };
 
@@ -197,15 +207,23 @@ export default function ExpenseDetailScreen() {
     const text = commentText.trim();
     if (!text) return;
     addComment.mutate(
-      { expenseId: expense.id, groupId: expense.group_id, userId: currentUserId, text },
+      {
+        expenseId: expense.id,
+        groupId: expense.group_id,
+        userId: currentUserId,
+        text,
+      },
       {
         onSuccess: () => {
           setCommentText('');
           setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 120);
         },
-      },
+      }
     );
   };
+
+  // Avatar color helper for split rows
+  const avFor = (m: User) => avatarColors[(m.avatar_color ?? 'green') as AvatarColor] ?? avatarColors.green;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -214,22 +232,17 @@ export default function ExpenseDetailScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 24}
       >
-        {/* ── Header ───────────────────────────────────────────────────── */}
+        {/* Fixed header */}
         <View style={styles.header}>
-          <TouchableOpacity
-            onPress={() => router.back()}
-            style={styles.backBtn}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
             <Ionicons name="chevron-back" size={20} color={colors.text} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Expense</Text>
           <View style={styles.headerActions}>
             <TouchableOpacity
               style={styles.actionBtn}
               onPress={() => router.push(`/expense/edit/${expense.id}` as never)}
             >
-              <Ionicons name="pencil-outline" size={14} color={colors.text2} />
+              <Ionicons name="pencil-outline" size={13} color={colors.text2} />
               <Text style={styles.actionBtnText}>Edit</Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -239,16 +252,17 @@ export default function ExpenseDetailScreen() {
             >
               <Ionicons
                 name={deleteConfirm ? 'warning-outline' : 'trash-outline'}
-                size={14}
+                size={13}
                 color={colors.danger}
               />
-              <Text style={[styles.actionBtnText, { color: colors.danger }]}>
+              <Text style={[styles.actionBtnText, styles.actionBtnTextDelete]}>
                 {deleteConfirm ? 'Confirm?' : 'Delete'}
               </Text>
             </TouchableOpacity>
           </View>
         </View>
 
+        {/* Scrollable detail + comments */}
         <ScrollView
           ref={scrollRef}
           style={styles.scroll}
@@ -256,134 +270,121 @@ export default function ExpenseDetailScreen() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* ── Hero card ────────────────────────────────────────────────── */}
-          <View style={styles.heroCard}>
-            {/* Emoji + title */}
-            <View style={styles.heroTop}>
-              <View style={styles.emojiCircle}>
-                <Text style={styles.heroEmoji}>{emoji}</Text>
-              </View>
-              <Text style={styles.heroTitle}>{expense.title}</Text>
-              {category && (
-                <View style={styles.catChip}>
-                  <Text style={styles.catChipText}>{category.label}</Text>
-                </View>
-              )}
-            </View>
-
-            {/* Divider */}
-            <View style={styles.heroDivider} />
-
-            {/* Amount + net badge */}
+          {/* Hero */}
+          <View style={styles.hero}>
+            <Text style={styles.heroTitle}>{expense.title}</Text>
             <View style={styles.heroAmountRow}>
-              <View style={styles.heroAmountBlock}>
-                <Text style={styles.heroAmountLabel}>TOTAL AMOUNT</Text>
-                <Text style={styles.heroAmount}>{formatAmount(expense.amount)}</Text>
-                {!isPersonal && (
-                  <Text style={styles.heroAmountSub}>
-                    {formatAmount(perPerson)} × {splitMembers.length} people
-                  </Text>
-                )}
-              </View>
+              <Text style={styles.heroAmount}>{formatAmount(expense.amount)}</Text>
               {net.type !== 'personal' && (
-                <View style={[styles.netBadge, { backgroundColor: netColor.bg, borderColor: netColor.border }]}>
-                  <Text style={[styles.netBadgeAmt, { color: netColor.main }]}>
-                    {net.type === 'owed' ? '−' : '+'}{formatAmount(net.amount)}
-                  </Text>
-                  <Text style={[styles.netBadgeLabel, { color: netColor.dim }]}>
-                    {NET_LABELS[net.type]}
-                  </Text>
+                <View style={[styles.netPill, { backgroundColor: netColor.bg, borderColor: netColor.main + '44' }]}>
+                  {net.type === 'uninvolved' ? (
+                    <Text style={[styles.netPillLabel, { color: netColor.main }]}>not involved</Text>
+                  ) : (
+                    <>
+                      <Text style={[styles.netPillAmt, { color: netColor.main }]}>
+                        {net.type === 'owed' ? '−' : '+'}{formatAmount(net.amount)}
+                      </Text>
+                      <Text style={[styles.netPillLabel, { color: netColor.dim }]}>
+                        {NET_LABELS[net.type]}
+                      </Text>
+                    </>
+                  )}
                 </View>
               )}
             </View>
-
-            {/* Meta: date · added by */}
-            <View style={styles.heroMeta}>
-              <Ionicons name="calendar-outline" size={12} color={colors.text3} />
-              <Text style={styles.heroMetaText}>{createdFmt?.date ?? ''}</Text>
-              {adder && (
-                <>
-                  <Text style={styles.heroMetaDot}>·</Text>
-                  <View style={[styles.heroMetaAvatar, { backgroundColor: avFor(adder).bg }]}>
-                    <Text style={[styles.heroMetaInitials, { color: avFor(adder).text }]}>
-                      {initialsFromName(adder.name)}
-                    </Text>
-                  </View>
-                  <Text style={styles.heroMetaText}>
-                    by {adder.id === currentUserId ? 'you' : formatDisplayName(adder.name)}
-                  </Text>
-                </>
-              )}
-              {updatedFmt && (
-                <>
-                  <Text style={styles.heroMetaDot}>·</Text>
-                  <Ionicons name="pencil-outline" size={11} color={colors.text3} />
-                  <Text style={styles.heroMetaText}>edited</Text>
-                </>
-              )}
-            </View>
+            {category && (
+              <Text style={styles.heroCat}>{emoji}  {category.label}</Text>
+            )}
           </View>
 
-          {/* ── Participants ─────────────────────────────────────────────── */}
-          {(payer || splitMembers.length > 0) && (
+          {/* Added by / edited meta */}
+          <View style={styles.metaBlock}>
+            {adder && (
+              <View style={styles.metaLine}>
+                <View style={[styles.metaAvatar, { backgroundColor: avFor(adder).bg }]}>
+                  <Text style={[styles.metaAvatarText, { color: avFor(adder).text }]}>
+                    {initialsFromName(adder.name)}
+                  </Text>
+                </View>
+                <View style={styles.metaTextCol}>
+                  <Text style={styles.metaLabel}>Added by {adder.id === currentUserId ? 'you' : formatDisplayName(adder.name)}</Text>
+                  {createdFmt && <Text style={styles.metaDate}>{createdFmt.date}  {createdFmt.time}</Text>}
+                </View>
+              </View>
+            )}
+            {updatedFmt && (
+              <View style={styles.metaLine}>
+                <View style={styles.metaIconBox}>
+                  <Ionicons name="pencil-outline" size={15} color={colors.text3} />
+                </View>
+                <View style={styles.metaTextCol}>
+                  <Text style={styles.metaLabel}>Last edited</Text>
+                  <Text style={styles.metaDate}>{updatedFmt.date}  {updatedFmt.time}</Text>
+                </View>
+              </View>
+            )}
+          </View>
+
+          {/* Paid by */}
+          {payer && (
             <View style={styles.section}>
-              <Text style={styles.sectionLabel}>
-                {isPersonal ? 'PAID BY' : 'PARTICIPANTS'}
-              </Text>
+              <Text style={styles.sectionLabel}>PAID BY</Text>
               <View style={styles.card}>
-
-                {/* Payer row */}
-                {payer && (
-                  <View style={styles.participantRow}>
-                    <View style={[styles.avatar, { backgroundColor: avFor(payer).bg }]}>
-                      <Text style={[styles.avatarText, { color: avFor(payer).text }]}>
-                        {initialsFromName(payer.name)}
-                      </Text>
-                    </View>
-                    <View style={styles.participantInfo}>
-                      <Text style={styles.participantName}>
-                        {payer.id === currentUserId ? 'You' : formatDisplayName(payer.name)}
-                      </Text>
-                      <Text style={styles.participantSub}>
-                        {isPersonal ? 'personal expense' : 'paid the bill'}
-                      </Text>
-                    </View>
-                    <View style={styles.participantRight}>
-                      <Text style={[styles.participantAmt, { color: colors.accent }]}>
-                        {formatAmount(expense.amount)}
-                      </Text>
-                      <View style={styles.paidTag}>
-                        <Text style={styles.paidTagText}>paid ✓</Text>
-                      </View>
-                    </View>
+                <View style={styles.memberRow}>
+                  <View style={[styles.avatar, { backgroundColor: avFor(payer).bg }]}>
+                    <Text style={[styles.avatarText, { color: avFor(payer).text }]}>
+                      {initialsFromName(payer.name)}
+                    </Text>
                   </View>
-                )}
+                  <View style={styles.memberInfo}>
+                    <Text style={styles.memberName}>
+                      {payer.id === currentUserId ? `You (${formatDisplayName(payer.name)})` : formatDisplayName(payer.name)}
+                    </Text>
+                    <Text style={styles.memberSub}>
+                      Paid {formatAmount(expense.amount)}
+                    </Text>
+                  </View>
+                  <View style={[styles.badge, isYouPaid ? styles.badgeGreen : styles.badgeDefault]}>
+                    <Text style={[styles.badgeText, { color: isYouPaid ? colors.accent : colors.text2 }]}>
+                      {isYouPaid ? 'You paid' : 'They paid'}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            </View>
+          )}
 
-                {/* Non-payer split members */}
-                {nonPayerMembers.map((m, i) => {
-                  const isMe = m.id === currentUserId;
-                  const amtColor = isYouPaid
-                    ? colors.danger
-                    : isMe ? colors.danger : colors.text2;
+          {/* Split with */}
+          {splitMembers.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionLabel}>SPLIT WITH</Text>
+              <View style={[styles.card, styles.cardFlush]}>
+                {splitMembers.map((m, i) => {
+                  const isPayer = m.id === expense.paid_by;
+                  const shareColor = isPayer
+                    ? colors.text2
+                    : (isYouPaid || m.id === currentUserId) ? colors.danger : colors.text2;
                   return (
                     <View key={m.id}>
-                      <View style={styles.participantDivider} />
-                      <View style={styles.participantRow}>
+                      <View style={styles.splitRow}>
                         <View style={[styles.avatar, { backgroundColor: avFor(m).bg }]}>
                           <Text style={[styles.avatarText, { color: avFor(m).text }]}>
                             {initialsFromName(m.name)}
                           </Text>
                         </View>
-                        <View style={styles.participantInfo}>
-                          <Text style={styles.participantName}>
-                            {isMe ? 'You' : formatDisplayName(m.name)}
+                        <View style={styles.memberInfo}>
+                          <Text style={styles.memberName}>
+                            {m.id === currentUserId ? 'You' : formatDisplayName(m.name)}
                           </Text>
-                          <Text style={styles.participantSub}>owes share</Text>
+                          {isPayer && (
+                            <Text style={styles.payerTagText}>paid · settled</Text>
+                          )}
                         </View>
-                        <Text style={[styles.participantAmt, { color: amtColor }]}>
-                          −{formatAmount(perPerson)}
+                        <Text style={[styles.shareAmt, { color: shareColor }]}>
+                          {isPayer ? '' : '−'}{formatAmount(splitMap.get(m.id) ?? 0)}
                         </Text>
                       </View>
+                      {i < splitMembers.length - 1 && <View style={styles.splitDivider} />}
                     </View>
                   );
                 })}
@@ -391,7 +392,7 @@ export default function ExpenseDetailScreen() {
             </View>
           )}
 
-          {/* ── Note ─────────────────────────────────────────────────────── */}
+          {/* Note */}
           {expense.note && (
             <View style={styles.section}>
               <Text style={styles.sectionLabel}>NOTE</Text>
@@ -401,7 +402,7 @@ export default function ExpenseDetailScreen() {
             </View>
           )}
 
-          {/* ── Comments ─────────────────────────────────────────────────── */}
+          {/* Comments */}
           <View style={styles.section}>
             <Text style={styles.sectionLabel}>
               COMMENTS{comments.length > 0 ? `  ${comments.length}` : ''}
@@ -413,12 +414,7 @@ export default function ExpenseDetailScreen() {
                 {[...comments]
                   .sort((a, b) => a.created_at.localeCompare(b.created_at))
                   .map(c => (
-                    <CommentBubble
-                      key={c.id}
-                      comment={c}
-                      memberMap={memberMap}
-                      currentUserId={currentUserId}
-                    />
+                    <CommentBubble key={c.id} comment={c} memberMap={memberMap} currentUserId={currentUserId} />
                   ))}
               </View>
             )}
@@ -427,7 +423,7 @@ export default function ExpenseDetailScreen() {
           <View style={{ height: 8 }} />
         </ScrollView>
 
-        {/* ── Comment input ─────────────────────────────────────────────── */}
+        {/* Pinned comment input */}
         <View style={styles.inputBar}>
           <TextInput
             style={styles.inputField}
@@ -457,112 +453,101 @@ export default function ExpenseDetailScreen() {
   );
 }
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
-
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
   flex: { flex: 1 },
-
-  centred: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 22 },
+  notFound: { flex: 1, paddingHorizontal: 22, paddingTop: 16, justifyContent: 'center' },
   notFoundText: {
-    fontFamily: fonts.dmSans, fontSize: 14, color: colors.text2, textAlign: 'center', marginTop: 16,
+    fontFamily: fonts.dmSans, fontSize: 14, color: colors.text2,
+    textAlign: 'center', marginTop: 60,
   },
 
-  // ── Header
   header: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 16, paddingVertical: 10,
-    borderBottomWidth: 1, borderBottomColor: colors.border,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 22,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
   backBtn: {
     width: 36, height: 36, borderRadius: 12,
-    backgroundColor: colors.cardElevated, borderWidth: 1, borderColor: colors.border,
+    backgroundColor: colors.cardElevated,
+    borderWidth: 1, borderColor: colors.border,
     alignItems: 'center', justifyContent: 'center',
-  },
-  headerTitle: {
-    flex: 1, textAlign: 'center',
-    fontFamily: fonts.syne, fontSize: 17, color: colors.text,
   },
   headerActions: { flexDirection: 'row', gap: 8 },
   actionBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
-    borderRadius: 10, paddingHorizontal: 11, paddingVertical: 7,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    borderRadius: 10, paddingHorizontal: 12, paddingVertical: 7,
     borderWidth: 1, borderColor: colors.borderEmphasis,
     backgroundColor: colors.cardElevated,
   },
   actionBtnDelete: {
-    borderColor: 'rgba(255,89,89,0.25)', backgroundColor: 'rgba(255,89,89,0.08)',
+    borderColor: 'rgba(255,89,89,0.25)',
+    backgroundColor: 'rgba(255,89,89,0.08)',
   },
-  actionBtnDanger: { borderColor: colors.danger, backgroundColor: colors.dangerDim },
-  actionBtnText: { fontFamily: fonts.dmSansSemiBold, fontSize: 13, fontWeight: '600', color: colors.text2 },
+  actionBtnDanger: {
+    borderColor: colors.danger,
+    backgroundColor: colors.dangerDim,
+  },
+  actionBtnText: {
+    fontFamily: fonts.dmSansSemiBold, fontSize: 13,
+    fontWeight: '600', color: colors.text2,
+  },
+  actionBtnTextDelete: { color: colors.danger },
 
-  // ── Scroll
   scroll: { flex: 1 },
-  content: { paddingHorizontal: 16, paddingTop: 18, paddingBottom: 8 },
+  content: { paddingHorizontal: 22, paddingTop: 16, paddingBottom: 8 },
 
-  // ── Hero card
-  heroCard: {
-    backgroundColor: colors.card, borderRadius: 24,
+  hero: {
+    backgroundColor: colors.card,
     borderWidth: 1, borderColor: colors.border,
-    marginBottom: 16, overflow: 'hidden',
+    borderRadius: 22, padding: 20,
+    marginBottom: 12,
   },
-  heroTop: { alignItems: 'center', paddingTop: 28, paddingBottom: 22, paddingHorizontal: 20 },
-  emojiCircle: {
-    width: 72, height: 72, borderRadius: 22,
-    backgroundColor: colors.cardElevated,
-    borderWidth: 1, borderColor: colors.borderEmphasis,
-    alignItems: 'center', justifyContent: 'center', marginBottom: 14,
-  },
-  heroEmoji: { fontSize: 34 },
   heroTitle: {
-    fontFamily: fonts.syne, fontSize: 20, fontWeight: '800',
-    color: colors.text, textAlign: 'center', marginBottom: 8, lineHeight: 26,
+    fontFamily: fonts.dmSansSemiBold, fontSize: 15, fontWeight: '600',
+    color: colors.text2, marginBottom: 4,
   },
-  catChip: {
-    backgroundColor: colors.cardElevated, borderWidth: 1, borderColor: colors.borderEmphasis,
-    borderRadius: 20, paddingHorizontal: 12, paddingVertical: 5,
-  },
-  catChipText: { fontFamily: fonts.dmSansSemiBold, fontSize: 12, fontWeight: '600', color: colors.text2 },
-
-  heroDivider: { height: 1, backgroundColor: colors.border, marginHorizontal: 0 },
-
   heroAmountRow: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 20, paddingTop: 18, paddingBottom: 14,
-  },
-  heroAmountBlock: {},
-  heroAmountLabel: {
-    fontFamily: fonts.dmSansSemiBold, fontSize: 10, fontWeight: '700',
-    letterSpacing: 1, textTransform: 'uppercase', color: colors.text3, marginBottom: 4,
+    flexDirection: 'row', alignItems: 'center',
+    justifyContent: 'space-between', marginBottom: 10,
   },
   heroAmount: {
-    fontFamily: fonts.syne, fontSize: 36, fontWeight: '800',
-    letterSpacing: -1.5, color: colors.text,
+    fontFamily: fonts.syne, fontSize: 38, fontWeight: '800',
+    letterSpacing: -2, color: colors.text,
   },
-  heroAmountSub: { fontFamily: fonts.dmSans, fontSize: 12, color: colors.text2, marginTop: 3 },
+  heroCat: { fontFamily: fonts.dmSans, fontSize: 13, color: colors.text2 },
+  metaBlock: { gap: 10, marginBottom: 16, paddingHorizontal: 2 },
+  metaLine: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  metaAvatar: {
+    width: 28, height: 28, borderRadius: 14,
+    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+  },
+  metaAvatarText: { fontFamily: fonts.dmSansSemiBold, fontSize: 11, fontWeight: '700' },
+  metaIconBox: {
+    width: 28, height: 28, borderRadius: 14,
+    backgroundColor: colors.cardElevated,
+    borderWidth: 1, borderColor: colors.border,
+    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+  },
+  metaTextCol: { gap: 2 },
+  metaLabel: { fontFamily: fonts.dmSansSemiBold, fontSize: 11, fontWeight: '600', color: colors.text },
+  metaDate: { fontFamily: fonts.dmSans, fontSize: 10, color: colors.text2 },
+  heroAdderRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
 
-  netBadge: {
-    alignItems: 'center', borderRadius: 16, borderWidth: 1,
-    paddingHorizontal: 14, paddingVertical: 10, minWidth: 90,
+  netPill: {
+    alignItems: 'flex-end',
+    borderRadius: 12, borderWidth: 1,
+    paddingHorizontal: 10, paddingVertical: 6,
   },
-  netBadgeAmt: { fontFamily: fonts.syne, fontSize: 18, fontWeight: '800', letterSpacing: -0.5 },
-  netBadgeLabel: { fontFamily: fonts.dmSans, fontSize: 11, marginTop: 2 },
+  netPillAmt: { fontFamily: fonts.syne, fontSize: 14, fontWeight: '800' },
+  netPillLabel: { fontFamily: fonts.dmSans, fontSize: 11, marginTop: 1 },
 
-  heroDivider2: { height: 1, backgroundColor: colors.border },
-  heroMeta: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
-    paddingHorizontal: 20, paddingTop: 12, paddingBottom: 16,
-    borderTopWidth: 1, borderTopColor: colors.border,
-  },
-  heroMetaText: { fontFamily: fonts.dmSans, fontSize: 12, color: colors.text2 },
-  heroMetaDot: { fontFamily: fonts.dmSans, fontSize: 12, color: colors.text3 },
-  heroMetaAvatar: {
-    width: 18, height: 18, borderRadius: 9,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  heroMetaInitials: { fontFamily: fonts.dmSansSemiBold, fontSize: 9, fontWeight: '700' },
-
-  // ── Sections
   section: { marginBottom: 14 },
   sectionLabel: {
     fontFamily: fonts.dmSansSemiBold, fontSize: 10, fontWeight: '700',
@@ -570,62 +555,77 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: colors.card, borderWidth: 1,
-    borderColor: colors.border, borderRadius: 20,
-    overflow: 'hidden',
+    borderColor: colors.border, borderRadius: 18, padding: 14,
   },
+  cardFlush: { padding: 0, paddingVertical: 4 },
 
-  // ── Participants
-  participantRow: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 16, paddingVertical: 13, gap: 12,
-  },
-  participantDivider: { height: 1, backgroundColor: colors.border, marginHorizontal: 16 },
+  memberRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   avatar: {
-    width: 40, height: 40, borderRadius: 20,
+    width: 38, height: 38, borderRadius: 19,
     alignItems: 'center', justifyContent: 'center', flexShrink: 0,
   },
-  avatarText: { fontFamily: fonts.dmSansSemiBold, fontSize: 13, fontWeight: '700' },
-  participantInfo: { flex: 1 },
-  participantName: {
-    fontFamily: fonts.dmSansSemiBold, fontSize: 14, fontWeight: '600', color: colors.text,
+  avatarText: { fontFamily: fonts.dmSansSemiBold, fontSize: 12, fontWeight: '700' },
+  memberInfo: { flex: 1 },
+  memberName: {
+    fontFamily: fonts.dmSansSemiBold, fontSize: 13,
+    fontWeight: '600', color: colors.text,
   },
-  participantSub: { fontFamily: fonts.dmSans, fontSize: 12, color: colors.text2, marginTop: 2 },
-  participantRight: { alignItems: 'flex-end', gap: 4 },
-  participantAmt: { fontFamily: fonts.syne, fontSize: 15, fontWeight: '800', letterSpacing: -0.3 },
-  paidTag: {
-    backgroundColor: colors.accentDim, borderWidth: 1, borderColor: colors.accentMid,
-    borderRadius: 8, paddingHorizontal: 8, paddingVertical: 2,
+  memberSub: { fontFamily: fonts.dmSans, fontSize: 13, color: colors.text2, marginTop: 1 },
+  badge: { borderRadius: 10, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, flexShrink: 0 },
+  badgeGreen: { backgroundColor: colors.accentDim, borderColor: colors.accentMid },
+  badgeDefault: { backgroundColor: colors.cardElevated, borderColor: colors.border },
+  badgeText: { fontFamily: fonts.dmSansSemiBold, fontSize: 12, fontWeight: '600' },
+
+  splitRow: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 14, paddingVertical: 11, gap: 10,
   },
-  paidTagText: { fontFamily: fonts.dmSansSemiBold, fontSize: 11, fontWeight: '600', color: colors.accent },
+  splitDivider: { height: 1, backgroundColor: colors.border, marginHorizontal: 14 },
+  payerTagText: { fontFamily: fonts.dmSans, fontSize: 13, color: colors.accent, marginTop: 1 },
+  shareAmt: { fontFamily: fonts.syne, fontSize: 14, fontWeight: '800', flexShrink: 0 },
 
-  // ── Note
-  noteText: { fontFamily: fonts.dmSans, fontSize: 13, color: colors.text, lineHeight: 20, padding: 14 },
+  noteText: { fontFamily: fonts.dmSans, fontSize: 13, color: colors.text, lineHeight: 20 },
 
-  // ── Comments
   emptyComments: {
     fontFamily: fonts.dmSans, fontSize: 13, color: colors.text3,
     textAlign: 'center', paddingVertical: 20,
   },
   commentsList: { gap: 0 },
 
-  // ── Input bar
   inputBar: {
-    flexDirection: 'row', alignItems: 'flex-end', gap: 10,
-    paddingHorizontal: 16, paddingTop: 10,
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingTop: 10,
     paddingBottom: Platform.OS === 'ios' ? 20 : 14,
-    borderTopWidth: 1, borderTopColor: colors.border,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
     backgroundColor: colors.bg,
   },
   inputField: {
-    flex: 1, backgroundColor: colors.cardElevated,
-    borderWidth: 1, borderColor: colors.borderEmphasis,
-    borderRadius: 20, paddingHorizontal: 14, paddingVertical: 10,
-    fontFamily: fonts.dmSans, fontSize: 13, color: colors.text, maxHeight: 100,
+    flex: 1,
+    backgroundColor: colors.cardElevated,
+    borderWidth: 1,
+    borderColor: colors.borderEmphasis,
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    fontFamily: fonts.dmSans,
+    fontSize: 13,
+    color: colors.text,
+    maxHeight: 100,
   },
   sendBtn: {
-    width: 38, height: 38, borderRadius: 19,
-    backgroundColor: colors.cardElevated, borderWidth: 1, borderColor: colors.borderEmphasis,
-    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: colors.cardElevated,
+    borderWidth: 1,
+    borderColor: colors.borderEmphasis,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
   },
   sendBtnActive: { backgroundColor: colors.accent, borderColor: colors.accent },
   sendBtnText: { fontSize: 16, color: colors.text3, fontWeight: '700' },

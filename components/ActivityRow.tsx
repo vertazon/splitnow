@@ -13,7 +13,7 @@ import type { Settlement } from '@/types/database';
 
 export interface MemberLite { id: string; name: string; color: AvatarColor; }
 
-export type NetType = 'lent' | 'owed' | 'personal';
+export type NetType = 'lent' | 'owed' | 'personal' | 'uninvolved';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -32,19 +32,23 @@ export function getNetBalance(
     return { type: 'lent', amount: parseFloat(lent.toFixed(2)) };
   }
 
+  if (myShare === 0) return { type: 'uninvolved', amount: 0 };
+
   return { type: 'owed', amount: parseFloat(myShare.toFixed(2)) };
 }
 
 export const NET_COLORS: Record<NetType, { main: string; dim: string }> = {
-  lent:     { main: colors.accent, dim: 'rgba(0,212,154,0.80)' },
-  owed:     { main: colors.danger, dim: 'rgba(255,89,89,0.80)' },
-  personal: { main: colors.text,   dim: colors.text2           },
+  lent:       { main: colors.accent, dim: 'rgba(0,212,154,0.80)' },
+  owed:       { main: colors.danger, dim: 'rgba(255,89,89,0.80)' },
+  personal:   { main: colors.text,   dim: colors.text2           },
+  uninvolved: { main: colors.text3,  dim: colors.text3           },
 };
 
 const NET_LABELS: Record<NetType, string> = {
-  lent: 'you lent',
-  owed: 'you owe',
-  personal: '',
+  lent:       'you lent',
+  owed:       'you owe',
+  personal:   '',
+  uninvolved: 'not involved',
 };
 
 // ─── MiniAvatars ─────────────────────────────────────────────────────────────
@@ -155,7 +159,7 @@ export function ActivityRow({
             )}
           </View>
 
-          {!isPersonal && splitUserIds.length > 1 && (
+          {!isPersonal && splitUserIds.length > 0 && (
             <View style={rowStyles.splitMeta}>
               <Text style={rowStyles.payerText} numberOfLines={1}>
                 {payerLabel} paid {formatAmount(exp.amount)}
@@ -167,8 +171,7 @@ export function ActivityRow({
 
         <View style={rowStyles.right}>
           <Text style={[rowStyles.netAmount, { color: netColor.main }]}>
-            {net.type === 'owed' ? '−' : net.type === 'lent' ? '+' : ''}
-            {formatAmount(net.amount)}
+            {net.type === 'uninvolved' ? '—' : (net.type === 'owed' ? '−' : net.type === 'lent' ? '+' : '') + formatAmount(net.amount)}
           </Text>
           {NET_LABELS[net.type] !== '' && (
             <Text style={[rowStyles.netLabel, { color: netColor.dim }]}>
