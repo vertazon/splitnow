@@ -7,6 +7,32 @@
 
 create extension if not exists "pgcrypto";
 
+-- ─── Invite code generator ────────────────────────────────────────────────────
+-- Must be defined before the users table which uses it as a column default.
+create or replace function public.generate_invite_code()
+returns text
+language plpgsql
+as $$
+declare
+  chars  text := 'abcdefghjkmnpqrstuvwxyz23456789';
+  code   text;
+begin
+  loop
+    select string_agg(
+      substr(chars, floor(random() * length(chars))::int + 1, 1),
+      ''
+    )
+    into code
+    from generate_series(1, 8);
+
+    exit when not exists (
+      select 1 from public.users where invite_code = code
+    );
+  end loop;
+  return code;
+end;
+$$;
+
 -- ─── Users ────────────────────────────────────────────────────────────────────
 create table if not exists public.users (
   id          uuid        primary key default gen_random_uuid(),
