@@ -65,10 +65,13 @@ It is a **confirmation layer** that sits between your UPI payment and your share
 
 The app is a functional prototype with live Supabase backend:
 - Phone-number OTP authentication (Supabase Auth)
-- Groups, members, expenses, and settlements are stored in PostgreSQL via Supabase
+- Groups, members, expenses, splits, settlements, and comments are stored in PostgreSQL via Supabase
 - Balance computation is done in-app from live DB data
+- **Groups feature is fully shipped** — create, manage, invite members, view group-scoped balances and expenses
+- **Comments are live** — users can comment on any expense in real time
+- **Custom splits are live** — equal, by amount, or by percentage via SplitSheet
 - UPI deeplink settlement is implemented but **disabled** (code commented out) — settlements are recorded in the DB as manual confirmations
-- Friends system: users can add friends via 8-character invite codes and share expenses across friend groups
+- Friends system: users can add friends via 8-character invite codes
 - RLS (Row-Level Security) is intentionally disabled for the prototype phase
 
 ---

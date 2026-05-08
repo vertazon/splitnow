@@ -14,6 +14,7 @@ SplitNow speaks like a smart, casual friend — not a bank or a startup.
 | "Owes you" | "Receivable Amount" |
 | "Added!" | "Transaction Recorded Successfully" |
 | "Settled with X ✓" | "Payment recorded successfully" |
+| "not involved" | "No share" or "N/A" |
 
 ---
 
@@ -36,9 +37,54 @@ SplitNow speaks like a smart, casual friend — not a bank or a startup.
 
 ### Add Screen
 - Title: `Add Expense`
-- Section labels: `CATEGORY` · `SPLIT WITH`
-- Split row: `Each pays ₹180 (3 people)`
-- CTA: `Add Expense →`
+- Amount placeholder: `0`
+- Title placeholder: `What's this for?`
+- Section labels: `CATEGORY` · `PAID BY` · `SPLIT WITH`
+- Split pill labels: `= Equal` · `≠ Amount` · `≠ %`
+- CTA (idle): `Add Expense →`
+- CTA (success): `✓ Added!`
+- CTA (error): `Failed — try again`
+
+### Group Detail Screen
+- Balance label: `GROUP BALANCE`
+- Member section: `MEMBERS`
+- Expense section: `EXPENSES`
+- Add button: `Add Expense`
+- Sheet title: `Add Expense`
+- Settled member label: `All settled`
+
+### Expense Detail Screen
+- Back button: chevron-back icon (no text)
+- Edit button: `Edit`
+- Delete button: `Delete` → `Confirm?` (2-tap confirm)
+- Net pill (lent): `+₹X` / `you lent`
+- Net pill (owed): `−₹X` / `you owe`
+- Net pill (uninvolved): `not involved`
+- Paid by badge (you paid): `You paid`
+- Paid by badge (they paid): `They paid`
+- Payer sub-text: `Paid ₹X`
+- Split member tag (payer in split): `paid · settled`
+- Comments section label: `COMMENTS` / `COMMENTS  N`
+- Comments empty state: `No comments yet. Start the conversation.`
+- Comment input placeholder: `Add a comment…`
+
+### Expense Edit Screen
+- Screen title: `Edit Expense`
+- Amount placeholder: `0`
+- Title placeholder: `What's this for?`
+- CTA (idle): `Save Changes →`
+- CTA (pending): `Saving…`
+- CTA (success): `✓ Saved!`
+- CTA (error): `Failed — try again`
+
+### SplitSheet
+- Sheet title: `Split ₹[amount]`
+- Tab labels: `Equal` · `Amount` · `%`
+- Confirm button: `Confirm split`
+- Summary (amount): `₹X of ₹total`
+- Summary (percent): `X% of 100%`
+- Error (amount): `Must add up to total amount`
+- Error (percent): `Must add up to 100%`
 
 ### Settle Screen
 - Title: `Settle Up`
@@ -64,6 +110,24 @@ SplitNow speaks like a smart, casual friend — not a bank or a startup.
 - Invite code input label: `Enter invite code`
 - Empty state: `No friends yet. Share your invite code to get started.`
 
+### Groups Screen
+- Screen title: `Groups`
+- Section — active: `YOUR GROUPS`
+- Section — archived: `PAST GROUPS`
+- Group balance (owe): `you owe`
+- Group balance (owed): `owed to you`
+- Empty state: `No groups yet. Create one to split together.`
+- Create CTA: `+ Create New Group`
+
+### Create Group Screen
+- Title: `New Group`
+- Emoji section: `GROUP ICON`
+- Name section: `GROUP NAME`
+- Name placeholder: `e.g. Flat, Goa Trip, Office…`
+- Members section: `ADD MEMBERS`
+- Members hint: `Only friends you've added can be members`
+- CTA: `Create Group →`
+
 ### Account Screen
 - Header title: `Profile`
 - Section label (account): `ACCOUNT`
@@ -81,17 +145,45 @@ SplitNow speaks like a smart, casual friend — not a bank or a startup.
 - Header: ✕ button (right side)
 - Save CTA: `Save`
 
-### Expense Detail Screen
-- Back button: chevron-back icon (no text)
-- Edit button: `Edit`
+---
 
-### Toast Messages
+## Toast Messages
+
+### Expense actions
 - After Quick Add: `✓ ₹540 added!`
-- After Add Expense: `✓ ₹[amount] added!`
+- After Add Expense (full screen): `✓ ₹[amount] added!`
+- After Edit Expense: `Changes saved ✓`
+- After Delete Expense: *(navigates back immediately, no toast)*
+
+### Settlement actions
 - After Settle (individual): `Settled with [Name] ✓`
 - After Settle All: `All settlements recorded ✓`
 - After home screen balance row settle: `Marked as paid to [Name] ✓`
+
+### Group actions
+- Group created: `🏠 [Name] created ✓`
+- Group archived: `[Name] archived ✓`
+- Member removed: `[Name] removed from [Group] ✓`
+- Expense added from group: `✓ ₹[amount] added to [Group]!`
+- Left group: `Left [Group] ✓`
+
+### Friend actions
 - After friend added: `[Name] added as a friend ✓`
+
+---
+
+## Error / Validation Copy
+
+| Trigger | Message |
+|---------|---------|
+| Amount field empty or invalid | `Enter a valid amount` |
+| Title field empty | `Title is required` |
+| No people selected for split | `Select at least one person to split with` |
+| Split amounts don't add up | `Must add up to total amount` |
+| Split percentages don't add up | `Must add up to 100%` |
+| Remove member with balance | `Settle ₹[amount] with [Name] first` |
+| Leave group with balance | `You owe ₹[amount] in this group. Settle first.` |
+| Save expense error | `Couldn't save: [error message]` |
 
 ---
 
@@ -131,6 +223,8 @@ SplitNow speaks like a smart, casual friend — not a bank or a startup.
 - All settled up (home balance card): `All settled up ✓`
 - No personal expenses: `No personal expenses this month`
 - No friends: `No friends yet. Share your invite code to get started.`
+- No groups: `No groups yet. Create one to split together.`
+- No comments: `No comments yet. Start the conversation.`
 
 ---
 
