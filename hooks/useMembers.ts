@@ -7,11 +7,17 @@ export async function fetchMembersForGroup(groupId: string): Promise<User[]> {
   const { data, error } = await supabase
     .from('group_members')
     .select('user:users(*)')
-    .eq('group_id', groupId);
+    .eq('group_id', groupId)
+    .is('left_at', null);
   if (error) throw error;
+  const seen = new Set<string>();
   return (data ?? [])
     .map((row: any) => row.user as User | null)
-    .filter((u): u is User => u !== null);
+    .filter((u): u is User => {
+      if (!u || seen.has(u.id)) return false;
+      seen.add(u.id);
+      return true;
+    });
 }
 
 export function useMembers(groupId: string | null | undefined) {

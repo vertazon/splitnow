@@ -14,6 +14,19 @@ export interface ExpenseWithSplits extends Expense {
 
 const EXPENSES_PAGE_LIMIT = 100;
 
+/** Deduplicate splits by user_id, keeping the first occurrence. */
+function dedupSplits(expense: ExpenseWithSplits): ExpenseWithSplits {
+  const seen = new Set<string>();
+  return {
+    ...expense,
+    splits: (expense.splits ?? []).filter(s => {
+      if (seen.has(s.user_id)) return false;
+      seen.add(s.user_id);
+      return true;
+    }),
+  };
+}
+
 /** Shared query fn — fetches the most recent 100 expenses with splits + comments for a group. */
 export async function fetchExpenses(groupId: string): Promise<ExpenseWithSplits[]> {
   const { data, error } = await supabase
@@ -23,7 +36,7 @@ export async function fetchExpenses(groupId: string): Promise<ExpenseWithSplits[
     .order('created_at', { ascending: false })
     .limit(EXPENSES_PAGE_LIMIT);
   if (error) throw error;
-  return (data ?? []) as ExpenseWithSplits[];
+  return ((data ?? []) as ExpenseWithSplits[]).map(dedupSplits);
 }
 
 export function useExpenses(groupId: string | null | undefined) {
@@ -94,7 +107,7 @@ export function useExpense(expenseId: string | undefined) {
         .eq('id', expenseId)
         .maybeSingle();
       if (error) throw error;
-      return data as ExpenseWithSplits | null;
+      return data ? dedupSplits(data as ExpenseWithSplits) : null;
     },
     enabled: !!expenseId,
   });

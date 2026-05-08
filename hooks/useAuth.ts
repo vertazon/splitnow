@@ -73,20 +73,18 @@ async function fetchOrCreateUserGroup(userId: string, userName: string | null): 
     return;
   }
 
-  // No group yet — create a default one for this user
-  const { data: group, error } = await supabase
-    .from('groups')
-    .insert({ name: 'Personal', group_type: 'personal', created_by: userId })
-    .select('id')
-    .single();
+  // No group yet — use a SECURITY DEFINER RPC so the insert bypasses RLS.
+  // Direct inserts fail here because the JWT may not be attached to the request
+  // during the initial sign-up flow (Supabase JS v2 timing quirk).
+  const { data: groupId, error } = await supabase
+    .rpc('create_personal_group', { p_user_id: userId });
 
-  if (error || !group) {
+  if (error || !groupId) {
     console.error('[fetchOrCreateUserGroup] failed to create group:', error);
     return;
   }
 
-  await supabase.from('group_members').insert({ group_id: group.id, user_id: userId });
-  useGroupStore.getState().setCurrentGroupId(group.id);
+  useGroupStore.getState().setCurrentGroupId(groupId);
   // Invalidate groups cache so the home/insights screens show the personal group immediately
   queryClient.invalidateQueries({ queryKey: qk.groups.all });
 }
