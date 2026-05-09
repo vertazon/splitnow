@@ -186,31 +186,19 @@ export function useCreateGroup() {
 
   return useMutation({
     mutationFn: async (input: CreateGroupInput): Promise<string> => {
-      const { data: group, error: gErr } = await supabase
-        .from('groups')
-        .insert({
-          name:        input.name,
-          cover_emoji: input.cover_emoji,
-          group_type:  input.group_type,
-          created_by:  currentUserId,
-        })
-        .select()
-        .single();
+      // Use SECURITY DEFINER RPC — direct inserts on groups/group_members fail
+      // because the Supabase JS v2 JWT isn't always attached to direct inserts
+      // (same reason create_personal_group uses an RPC).
+      const otherMemberIds = input.memberIds.filter(id => id !== currentUserId);
+      const { data: groupId, error } = await (supabase as any).rpc('create_group', {
+        p_name:        input.name,
+        p_cover_emoji: input.cover_emoji,
+        p_group_type:  input.group_type,
+        p_member_ids:  otherMemberIds,
+      }) as { data: string | null; error: any };
 
-      if (gErr) throw gErr;
-
-      // Add creator as admin + all selected members
-      const allMemberIds = Array.from(new Set([currentUserId, ...input.memberIds]));
-      const memberRows = allMemberIds.map(uid => ({
-        group_id: group.id,
-        user_id:  uid,
-        role:     uid === currentUserId ? 'admin' : 'member',
-      }));
-
-      const { error: mErr } = await supabase.from('group_members').insert(memberRows);
-      if (mErr) throw mErr;
-
-      return group.id as string;
+      if (error) throw error;
+      return groupId as string;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qk.groups.all });
@@ -225,12 +213,12 @@ export function useUpdateGroup() {
 
   return useMutation({
     mutationFn: async (input: { groupId: string; name?: string; cover_emoji?: string; group_type?: string }) => {
-      const updates: Record<string, string> = {};
+      const updates: Record<string, string | null> = {};
       if (input.name !== undefined) updates.name = input.name;
       if (input.cover_emoji !== undefined) updates.cover_emoji = input.cover_emoji;
       if (input.group_type !== undefined) updates.group_type = input.group_type;
 
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('groups')
         .update(updates)
         .eq('id', input.groupId);
@@ -252,7 +240,7 @@ export function useArchiveGroup() {
 
   return useMutation({
     mutationFn: async (groupId: string) => {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('groups')
         .update({ archived_at: new Date().toISOString() })
         .eq('id', groupId);
@@ -272,7 +260,7 @@ export function useAddGroupMember() {
 
   return useMutation({
     mutationFn: async (input: { groupId: string; userId: string }) => {
-      const { error } = await supabase.from('group_members').upsert({
+      const { error } = await (supabase as any).from('group_members').upsert({
         group_id: input.groupId,
         user_id:  input.userId,
         role:     'member',
@@ -295,7 +283,7 @@ export function useRemoveGroupMember() {
 
   return useMutation({
     mutationFn: async (input: { groupId: string; userId: string }) => {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('group_members')
         .update({ left_at: new Date().toISOString() })
         .eq('group_id', input.groupId)

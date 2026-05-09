@@ -4,23 +4,9 @@
       "Bash(npm install *)",
       "Bash(npx tsc *)",
       "Bash(npx expo *)",
-      "Bash(node -e \"const pkg = require\\('./node_modules/@expo-google-fonts/dm-sans/package.json'\\); console.log\\(JSON.stringify\\(pkg.main\\)\\)\")",
-      "Bash(node -e \"const f = require\\('./node_modules/@expo-google-fonts/dm-sans'\\); console.log\\(Object.keys\\(f\\).filter\\(k => !k.startsWith\\('use'\\)\\).join\\('\\\\n'\\)\\)\")",
-      "Bash(node -e \"const keys = Object.keys\\(require\\('./node_modules/@expo-google-fonts/plus-jakarta-sans/index.js'\\)\\); console.log\\(keys.filter\\(k => k.startsWith\\('PlusJakarta'\\)\\).join\\('\\\\n'\\)\\)\")",
-      "Bash(git rm *)",
       "Bash(npx ngrok *)",
-      "Bash(grep -r \"useBalanceStore\\\\|useGroupStore\\\\|useUserStore\\\\|usePendingInvite\" \"D:\\\\SplitNow\" --include=\"*.tsx\" --include=\"*.ts\" ! -path \"*/node_modules/*\" -l)",
-      "Bash(git stash *)",
-      "Bash(tee /tmp/cur2.txt)",
-      "Bash(grep -nA 8 \"PostgrestVersion\" node_modules/@supabase/postgrest-js/dist/index.d.mts)",
-      "Bash(grep -nB 2 -A 15 \"type GenericSchema\\\\b\\\\|interface GenericSchema\\\\b\" node_modules/@supabase/postgrest-js/dist/index.d.mts)",
-      "Bash(grep -nB 2 -A 15 \"type GenericTable\\\\b\\\\|^type GenericView\\\\b\" node_modules/@supabase/postgrest-js/dist/index.d.mts)",
-      "Bash(tee /tmp/cur3.txt)",
-      "Bash(grep -nB 2 -A 12 \"class SupabaseClient\\\\|interface SupabaseClient\" node_modules/@supabase/supabase-js/dist/module/SupabaseClient.d.ts)",
-      "Bash(grep -nB 1 -A 30 \"class SupabaseClient\\\\b\" node_modules/@supabase/supabase-js/dist/index.d.mts)",
-      "Bash(tee /tmp/cur4.txt)",
-      "Bash(del \"D:\\\\SplitNow\\\\components\\\\ProfileMenu.tsx\")",
-      "Bash(del \"D:\\\\SplitNow\\\\app\\\\\\(tabs\\)\\\\settle.tsx\")"
+      "Bash(git rm *)",
+      "Bash(git stash *)"
     ]
   }
 }

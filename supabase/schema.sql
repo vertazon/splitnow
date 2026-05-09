@@ -46,7 +46,6 @@ create table if not exists public.users (
 
 -- ─── Friendships ─────────────────────────────────────────────────────────────
 -- Single canonical row per pair. Invariant: user_id::text < friend_id::text.
--- See migrations/001_friendships.sql for the full rationale.
 create table if not exists public.friendships (
   id         uuid        primary key default gen_random_uuid(),
   user_id    uuid        not null references public.users(id) on delete cascade,
@@ -141,22 +140,5 @@ create index if not exists expense_comments_expense_idx
 create index if not exists settlements_group_idx
   on public.settlements (group_id, settled_at desc);
 
--- Explicitly disable RLS for the prototype phase.
--- Supabase enables it by default on dashboard-created tables; this overrides that.
-alter table public.users               disable row level security;
-alter table public.friendships         disable row level security;
-alter table public.groups              disable row level security;
-alter table public.group_members       disable row level security;
-alter table public.expenses            disable row level security;
-alter table public.expense_splits      disable row level security;
-alter table public.expense_comments    disable row level security;
-alter table public.settlements         disable row level security;
-
--- TODO: enable RLS once Supabase Auth is wired up:
--- alter table public.users             enable row level security;
--- alter table public.groups            enable row level security;
--- alter table public.group_members     enable row level security;
--- alter table public.expenses          enable row level security;
--- alter table public.expense_splits    enable row level security;
--- alter table public.expense_comments  enable row level security;
--- alter table public.settlements       enable row level security;
+-- RLS is disabled here so the tables can be created cleanly.
+-- auth_rls.sql (run next) enables RLS and creates all policies.

@@ -1,5 +1,5 @@
 // SplitNow database types
-// Mirror of the schema in supabase/schema.sql + 02_auth_rls.sql.
+// Mirror of the schema in supabase/schema.sql + supabase/auth_rls.sql.
 
 export type AvatarColor = 'green' | 'blue' | 'purple' | 'orange';
 
