@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>SplitNow — Icon Generator</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;700;800&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0D0D0D; font-family: 'Plus Jakarta Sans', sans-serif;
+    color: #F2F2F2; padding: 48px 40px; min-height: 100vh;
+  }
+  h1 { font-size: 24px; font-weight: 800; margin-bottom: 6px; }
+  h1 span { color: #00D49A; }
+  .subtitle { font-size: 13px; color: #888; margin-bottom: 40px; }
+  .grid { display: flex; flex-wrap: wrap; gap: 24px; }
+  .card {
+    background: #161616; border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 18px; padding: 20px; display: flex; flex-direction: column;
+    align-items: center; gap: 14px; min-width: 200px;
+  }
+  .card canvas { border-radius: 8px; }
+  .label { font-size: 11px; font-weight: 700; color: #888; text-align: center; letter-spacing: 0.5px; }
+  .filename { font-size: 10px; color: #4A4A4A; font-family: monospace; }
+  button {
+    background: rgba(0,212,154,0.10); border: 1px solid rgba(0,212,154,0.22);
+    color: #00D49A; font-family: inherit; font-size: 12px; font-weight: 700;
+    padding: 8px 18px; border-radius: 20px; cursor: pointer; transition: all 0.12s;
+    letter-spacing: 0.3px;
+  }
+  button:hover { background: rgba(0,212,154,0.20); }
+  .download-all {
+    background: #00D49A; color: #000; border: none; font-size: 14px; font-weight: 800;
+    padding: 12px 28px; border-radius: 14px; cursor: pointer; margin-bottom: 32px;
+    box-shadow: 0 6px 24px rgba(0,212,154,0.28);
+  }
+  .note {
+    font-size: 12px; color: #888; background: #161616; border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 12px; padding: 14px 18px; margin-bottom: 32px; max-width: 600px;
+    line-height: 1.6;
+  }
+  .note strong { color: #F2F2F2; }
+</style>
+</head>
+<body>
+
+<h1>Split<span>Now</span> — Icon Generator</h1>
+<div class="subtitle">Concept A · Split ₹ · All required Expo assets</div>
+
+<div class="note">
+  <strong>How to use:</strong> Wait for fonts to load (1–2 sec), then click each Download button.
+  Save each file to <code>assets/images/</code> with the exact filename shown.
+  Or click <strong>Download All</strong> to get them all at once.
+</div>
+
+<button class="download-all" onclick="downloadAll()">⬇ Download All 6 Files</button>
+
+<div class="grid" id="grid"></div>
+
+<canvas id="offscreen" style="display:none;"></canvas>
+
+<script>
+const TEAL = '#00D49A';
+const RED  = '#FF5959';
+const DARK = '#0D0D0D';
+const CARD = '#161616';
+
+// Draw the Split ₹ icon onto a canvas context at 1024x1024 scale
+// bg: background color ('transparent' for foreground layer)
+// safeZone: if true, scale content to 66% (adaptive icon foreground)
+// mono: if true, draw grayscale version
+function drawIcon(ctx, size, { bg = DARK, safeZone = false, mono = false, splashOnly = false } = {}) {
+  const S = 1024; // internal drawing size, scaled to canvas
+  const scale = size / S;
+
+  ctx.save();
+  ctx.scale(scale, scale);
+
+  // Background
+  if (bg === 'transparent') {
+    ctx.clearRect(0, 0, S, S);
+  } else {
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, S, S);
+  }
+
+  // Safe zone offset for adaptive icon foreground
+  const pad  = safeZone ? S * 0.17 : 0;
+  const w    = S - pad * 2;
+  const h    = S - pad * 2;
+  const offX = pad;
+  const offY = pad;
+
+  // Font size proportional to drawing area
+  const fontSize = Math.round(w * 0.74);
+  const textX    = offX + w / 2;
+  const textY    = offY + h * 0.78;
+
+  // Diagonal clip boundary (scaled to drawing area)
+  // Original: points "0,0 256,0 180,512 0,512" in 512 space
+  // Scale to w×h: left boundary x at top = w/2, at bottom = w*0.35
+  const lx0 = offX;          const ly0 = offY;
+  const lx1 = offX + w / 2;  const ly1 = offY;
+  const lx2 = offX + w * 0.352; const ly2 = offY + h;
+  const lx3 = offX;          const ly3 = offY + h;
+
+  const rx0 = offX + w / 2;  const ry0 = offY;
+  const rx1 = offX + w;      const ry1 = offY;
+  const rx2 = offX + w;      const ry2 = offY + h;
+  const rx3 = offX + w * 0.352; const ry3 = offY + h;
+
+  const tealColor = mono ? '#E0E0E0' : TEAL;
+  const redColor  = mono ? '#707070' : RED;
+  const lineColor = bg === 'transparent' ? 'rgba(0,0,0,0)' : bg;
+
+  // Left half — teal
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(lx0, ly0); ctx.lineTo(lx1, ly1);
+  ctx.lineTo(lx2, ly2); ctx.lineTo(lx3, ly3);
+  ctx.closePath();
+  ctx.clip();
+  ctx.font = `900 ${fontSize}px 'Plus Jakarta Sans', Arial, sans-serif`;
+  ctx.fillStyle = tealColor;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillText('₹', textX, textY);
+  ctx.restore();
+
+  // Right half — red
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(rx0, ry0); ctx.lineTo(rx1, ry1);
+  ctx.lineTo(rx2, ry2); ctx.lineTo(rx3, ry3);
+  ctx.closePath();
+  ctx.clip();
+  ctx.font = `900 ${fontSize}px 'Plus Jakarta Sans', Arial, sans-serif`;
+  ctx.fillStyle = redColor;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillText('₹', textX, textY);
+  ctx.restore();
+
+  // Split line (same color as bg to create gap)
+  if (bg !== 'transparent') {
+    const lw = w * 0.028;
+    ctx.save();
+    ctx.strokeStyle = bg === 'transparent' ? 'rgba(0,0,0,0)' : bg;
+    ctx.lineWidth = lw;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(offX + w / 2 - lw / 2, offY);
+    ctx.lineTo(offX + w * 0.352 - lw / 2, offY + h);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  ctx.restore(); // undo scale
+}
+
+const icons = [
+  {
+    id: 'icon',
+    label: 'App Icon',
+    filename: 'icon.png',
+    size: 1024,
+    opts: { bg: DARK },
+  },
+  {
+    id: 'foreground',
+    label: 'Android Adaptive — Foreground',
+    filename: 'android-icon-foreground.png',
+    size: 1024,
+    opts: { bg: 'transparent', safeZone: true },
+  },
+  {
+    id: 'background',
+    label: 'Android Adaptive — Background',
+    filename: 'android-icon-background.png',
+    size: 1024,
+    opts: { bg: DARK, plain: true },
+  },
+  {
+    id: 'monochrome',
+    label: 'Android Adaptive — Monochrome',
+    filename: 'android-icon-monochrome.png',
+    size: 1024,
+    opts: { bg: DARK, mono: true },
+  },
+  {
+    id: 'splash',
+    label: 'Splash Screen Icon',
+    filename: 'splash-icon.png',
+    size: 512,
+    opts: { bg: DARK },
+  },
+  {
+    id: 'favicon',
+    label: 'Favicon (Web)',
+    filename: 'favicon.png',
+    size: 64,
+    opts: { bg: DARK },
+  },
+];
+
+function makeCanvas(icon) {
+  const canvas = document.createElement('canvas');
+  canvas.width  = icon.id === 'favicon' ? 64 : 256; // preview size
+  canvas.height = icon.id === 'favicon' ? 64 : 256;
+  canvas.id = 'preview-' + icon.id;
+
+  const ctx = canvas.getContext('2d');
+  if (icon.opts.plain) {
+    ctx.fillStyle = DARK;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  } else {
+    drawIcon(ctx, canvas.width, icon.opts);
+  }
+  return canvas;
+}
+
+function downloadIcon(icon) {
+  const offscreen = document.getElementById('offscreen');
+  offscreen.width  = icon.size;
+  offscreen.height = icon.size;
+  const ctx = offscreen.getContext('2d');
+  ctx.clearRect(0, 0, icon.size, icon.size);
+
+  if (icon.opts.plain) {
+    ctx.fillStyle = DARK;
+    ctx.fillRect(0, 0, icon.size, icon.size);
+  } else {
+    drawIcon(ctx, icon.size, icon.opts);
+  }
+
+  const link = document.createElement('a');
+  link.download = icon.filename;
+  link.href = offscreen.toDataURL('image/png');
+  link.click();
+}
+
+async function downloadAll() {
+  for (const icon of icons) {
+    downloadIcon(icon);
+    await new Promise(r => setTimeout(r, 300));
+  }
+}
+
+// Build the grid once fonts are ready
+document.fonts.ready.then(() => {
+  const grid = document.getElementById('grid');
+
+  icons.forEach(icon => {
+    const card = document.createElement('div');
+    card.className = 'card';
+
+    const canvas = makeCanvas(icon);
+    card.appendChild(canvas);
+
+    const label = document.createElement('div');
+    label.className = 'label';
+    label.textContent = icon.label;
+    card.appendChild(label);
+
+    const fname = document.createElement('div');
+    fname.className = 'filename';
+    fname.textContent = icon.filename;
+    card.appendChild(fname);
+
+    const btn = document.createElement('button');
+    btn.textContent = 'Download';
+    btn.onclick = () => downloadIcon(icon);
+    card.appendChild(btn);
+
+    grid.appendChild(card);
+  });
+});
+</script>
+</body>
+</html>
