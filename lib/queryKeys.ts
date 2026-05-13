@@ -43,4 +43,8 @@ export const qk = {
     detail: (groupId: string | null | undefined) => ['group', groupId] as const,
     members: (groupId: string | null | undefined) => ['groupMembers', groupId] as const,
   },
+  expenseHistory: {
+    all: ['expenseHistory'] as const,
+    list: (expenseId: string | null | undefined) => ['expenseHistory', expenseId] as const,
+  },
 } as const;

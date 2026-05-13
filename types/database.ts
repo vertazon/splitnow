@@ -89,6 +89,20 @@ export interface ExpenseComment {
   created_at: string;
 }
 
+export interface ExpenseHistoryDiff {
+  field: string;  // 'title' | 'amount' | 'category' | 'paid_by' | 'note' | `split.${userId}`
+  from: string | number | null;
+  to: string | number | null;
+}
+
+export interface ExpenseHistory {
+  id:          string;
+  expense_id:  string;
+  changed_by:  string;
+  changes:     ExpenseHistoryDiff[];
+  created_at:  string;
+}
+
 export interface Friendship {
   id: string;
   /** Always the lexicographically smaller UUID of the pair. */
@@ -126,7 +140,8 @@ export type GroupInsert      = Omit<Group, 'id' | 'created_at' | 'cover_emoji' |
 export type ExpenseInsert    = Omit<Expense, 'id' | 'created_at' | 'updated_at' | 'type'> & Partial<Pick<Expense, 'id' | 'created_at' | 'updated_at' | 'type'>>;
 export type SplitInsert      = Omit<ExpenseSplit, 'id'>                               & Partial<Pick<ExpenseSplit, 'id'>>;
 export type CommentInsert    = Omit<ExpenseComment, 'id' | 'created_at' | 'parent_id'> & Partial<Pick<ExpenseComment, 'id' | 'created_at' | 'parent_id'>>;
-export type SettlementInsert = Omit<Settlement, 'id' | 'settled_at' | 'status'>       & Partial<Pick<Settlement, 'id' | 'settled_at' | 'status'>>;
+export type SettlementInsert      = Omit<Settlement,      'id' | 'settled_at' | 'status'>       & Partial<Pick<Settlement,      'id' | 'settled_at' | 'status'>>;
+export type ExpenseHistoryInsert  = Omit<ExpenseHistory,  'id' | 'created_at'>                   & Partial<Pick<ExpenseHistory,  'id' | 'created_at'>>;
 
 // Database type consumed by `createClient<Database>` in lib/supabase.ts.
 //
@@ -149,6 +164,7 @@ export interface Database {
       expense_splits:    Tbl<ExpenseSplit,   SplitInsert>;
       expense_comments:  Tbl<ExpenseComment, CommentInsert>;
       settlements:       Tbl<Settlement,     SettlementInsert>;
+      expense_history:   Tbl<ExpenseHistory, ExpenseHistoryInsert>;
     };
     Views: { [_ in never]: never };
     Functions: { [_ in never]: never };

@@ -4,11 +4,12 @@ import { initialsFromName } from '@/constants/dateFormat';
 import { categories } from '@/constants/sampleData';
 import { fonts } from '@/constants/typography';
 import { useAddComment, useDeleteExpense, useExpense } from '@/hooks/useExpenses';
+import { useExpenseHistory } from '@/hooks/useExpenseHistory';
 import { useMembers } from '@/hooks/useMembers';
 import { DEV_USER_ID } from '@/lib/auth';
 import { useGroupStore } from '@/store/useGroupStore';
 import { useUserStore } from '@/store/useUserStore';
-import type { AvatarColor, ExpenseComment, User } from '@/types/database';
+import type { AvatarColor, ExpenseComment, ExpenseHistory, ExpenseHistoryDiff, User } from '@/types/database';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavGuard } from '@/hooks/useNavGuard';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -111,6 +112,103 @@ const bubbleStyles = StyleSheet.create({
   },
 });
 
+// ─── History helpers ──────────────────────────────────────────────────────────
+
+function relativeTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins  = Math.floor(diff / 60_000);
+  const hours = Math.floor(mins / 60);
+  const days  = Math.floor(hours / 24);
+  if (days > 6)  return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+  if (days > 0)  return `${days}d ago`;
+  if (hours > 0) return `${hours}h ago`;
+  if (mins > 0)  return `${mins}m ago`;
+  return 'just now';
+}
+
+function renderDiffLabel(diff: ExpenseHistoryDiff, memberMap: Map<string, User>): string {
+  const { field, from, to } = diff;
+  if (field === 'title')
+    return `Description changed from "${from}" to "${to}"`;
+  if (field === 'amount')
+    return `Total changed from ${formatAmount(from as number)} to ${formatAmount(to as number)}`;
+  if (field === 'category') {
+    const fromLabel = categories.find(c => c.id === from)?.label ?? String(from);
+    const toLabel   = categories.find(c => c.id === to)?.label   ?? String(to);
+    return `Category changed from ${fromLabel} to ${toLabel}`;
+  }
+  if (field === 'paid_by') {
+    const fromName = from ? (memberMap.get(from as string)?.name ?? 'someone') : 'no one';
+    const toName   = to   ? (memberMap.get(to   as string)?.name ?? 'someone') : 'no one';
+    return `Paid by changed from ${formatDisplayName(fromName)} to ${formatDisplayName(toName)}`;
+  }
+  if (field === 'note') {
+    if (!from) return 'Note added';
+    if (!to)   return 'Note removed';
+    return 'Note updated';
+  }
+  if (field.startsWith('split.')) {
+    const uid  = field.replace('split.', '');
+    const name = formatDisplayName(memberMap.get(uid)?.name ?? null);
+    if (from === null) return `${name} added to split (${formatAmount(to as number)})`;
+    if (to   === null) return `${name} removed from split`;
+    return `${name}'s share changed from ${formatAmount(from as number)} to ${formatAmount(to as number)}`;
+  }
+  return `${field} changed`;
+}
+
+function HistoryEntry({
+  entry, memberMap, currentUserId, isLast,
+}: {
+  entry: ExpenseHistory; memberMap: Map<string, User>; currentUserId: string; isLast: boolean;
+}) {
+  const actor = memberMap.get(entry.changed_by);
+  const av    = avatarColors[(actor?.avatar_color ?? 'green') as AvatarColor] ?? avatarColors.green;
+  const name  = entry.changed_by === currentUserId ? 'You' : formatDisplayName(actor?.name ?? null);
+
+  return (
+    <View style={histStyles.entry}>
+      <View style={histStyles.actorRow}>
+        <View style={[histStyles.avatar, { backgroundColor: av.bg }]}>
+          <Text style={[histStyles.avatarText, { color: av.text }]}>
+            {initialsFromName(actor?.name ?? '?')}
+          </Text>
+        </View>
+        <Text style={histStyles.actorLine} numberOfLines={1}>
+          <Text style={histStyles.actorName}>{name}</Text>
+          <Text style={histStyles.actorVerb}> updated this expense</Text>
+        </Text>
+        <Text style={histStyles.time}>{relativeTime(entry.created_at)}</Text>
+      </View>
+      {entry.changes.map((diff, i) => (
+        <View key={i} style={histStyles.diffLine}>
+          <Text style={histStyles.bullet}>·</Text>
+          <Text style={histStyles.diffText}>{renderDiffLabel(diff, memberMap)}</Text>
+        </View>
+      ))}
+      {!isLast && <View style={histStyles.divider} />}
+    </View>
+  );
+}
+
+const histStyles = StyleSheet.create({
+  entry:     { paddingHorizontal: 14, paddingVertical: 12 },
+  actorRow:  { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
+  avatar: {
+    width: 26, height: 26, borderRadius: 13,
+    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+  },
+  avatarText:  { fontFamily: fonts.dmSansSemiBold, fontSize: 10, fontWeight: '700' },
+  actorLine:   { flex: 1, fontFamily: fonts.dmSans, fontSize: 12, color: colors.text },
+  actorName:   { fontFamily: fonts.dmSansSemiBold, fontWeight: '600' },
+  actorVerb:   { color: colors.text2 },
+  time:        { fontFamily: fonts.dmSans, fontSize: 11, color: colors.text3, flexShrink: 0 },
+  diffLine:    { flexDirection: 'row', gap: 6, paddingLeft: 34, marginBottom: 3 },
+  bullet:      { fontFamily: fonts.dmSans, fontSize: 12, color: colors.text3, lineHeight: 18 },
+  diffText:    { flex: 1, fontFamily: fonts.dmSans, fontSize: 12, color: colors.text2, lineHeight: 18 },
+  divider:     { height: 1, backgroundColor: colors.border, marginTop: 4 },
+});
+
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function ExpenseDetailScreen() {
@@ -125,6 +223,7 @@ export default function ExpenseDetailScreen() {
   // Use the expense's own group_id so member names resolve correctly regardless
   // of which group the user navigated from.
   const { data: members = [] } = useMembers(expense?.group_id ?? groupId);
+  const { data: history = [] } = useExpenseHistory(id);
   const deleteExpense = useDeleteExpense();
   const addComment = useAddComment();
 
@@ -404,6 +503,43 @@ export default function ExpenseDetailScreen() {
               </View>
             </View>
           )}
+
+          {/* History */}
+          <View style={styles.section}>
+            <Text style={styles.sectionLabel}>HISTORY</Text>
+            <View style={[styles.card, styles.cardFlush]}>
+              {history.map((entry, i) => (
+                <HistoryEntry
+                  key={entry.id}
+                  entry={entry}
+                  memberMap={memberMap}
+                  currentUserId={currentUserId}
+                  isLast={i === history.length - 1 && false}
+                />
+              ))}
+              {/* Synthesized "added" entry — always last */}
+              <View style={[histStyles.entry, history.length > 0 && { borderTopWidth: 1, borderTopColor: colors.border }]}>
+                <View style={histStyles.actorRow}>
+                  {adder ? (
+                    <View style={[histStyles.avatar, { backgroundColor: (avatarColors[(adder.avatar_color ?? 'green') as AvatarColor] ?? avatarColors.green).bg }]}>
+                      <Text style={[histStyles.avatarText, { color: (avatarColors[(adder.avatar_color ?? 'green') as AvatarColor] ?? avatarColors.green).text }]}>
+                        {initialsFromName(adder.name)}
+                      </Text>
+                    </View>
+                  ) : (
+                    <View style={[histStyles.avatar, { backgroundColor: colors.cardElevated }]} />
+                  )}
+                  <Text style={histStyles.actorLine} numberOfLines={1}>
+                    <Text style={histStyles.actorName}>
+                      {adder ? (adder.id === currentUserId ? 'You' : formatDisplayName(adder.name)) : 'Someone'}
+                    </Text>
+                    <Text style={histStyles.actorVerb}> added this expense</Text>
+                  </Text>
+                  <Text style={histStyles.time}>{relativeTime(expense.created_at)}</Text>
+                </View>
+              </View>
+            </View>
+          </View>
 
           {/* Comments */}
           <View style={styles.section}>

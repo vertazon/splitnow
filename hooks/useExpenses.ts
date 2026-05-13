@@ -2,7 +2,9 @@ import { useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { qk } from '@/lib/queryKeys';
-import type { Expense, ExpenseSplit, ExpenseComment } from '@/types/database';
+import { useUserStore } from '@/store/useUserStore';
+import { DEV_USER_ID } from '@/lib/auth';
+import type { Expense, ExpenseSplit, ExpenseComment, ExpenseHistoryDiff } from '@/types/database';
 
 // Joined shape returned by useExpenses — splits + comments live alongside the row
 export interface ExpenseWithSplits extends Expense {
@@ -222,20 +224,78 @@ export interface UpdateExpenseInput {
   paidBy: string;
   note?: string | null;
   customSplits?: Record<string, number>;
+  /** Snapshot of the expense before editing — used to compute the changelog diff. */
+  before?: {
+    title: string;
+    amount: number;
+    category: string;
+    paid_by: string | null;
+    note: string | null;
+    splits: Array<{ user_id: string; amount_owed: number }>;
+  };
+}
+
+function computeExpenseDiff(
+  before: NonNullable<UpdateExpenseInput['before']>,
+  after: UpdateExpenseInput,
+): ExpenseHistoryDiff[] {
+  const changes: ExpenseHistoryDiff[] = [];
+
+  if (before.title !== after.title)
+    changes.push({ field: 'title', from: before.title, to: after.title });
+
+  if (parseFloat(String(before.amount)) !== after.amount)
+    changes.push({ field: 'amount', from: before.amount, to: after.amount });
+
+  if (before.category !== after.category)
+    changes.push({ field: 'category', from: before.category, to: after.category });
+
+  if (before.paid_by !== after.paidBy)
+    changes.push({ field: 'paid_by', from: before.paid_by, to: after.paidBy });
+
+  if ((before.note ?? '') !== (after.note ?? ''))
+    changes.push({ field: 'note', from: before.note ?? null, to: after.note ?? null });
+
+  // Per-user split diffs
+  const splitCount = Math.max(1, after.splitWith.length);
+  const perHead = parseFloat((after.amount / splitCount).toFixed(2));
+  const beforeMap = new Map(before.splits.map(s => [s.user_id, s.amount_owed]));
+  const afterMap  = new Map(after.splitWith.map(uid => [uid, after.customSplits?.[uid] ?? perHead]));
+
+  beforeMap.forEach((oldAmt, uid) => {
+    if (!afterMap.has(uid))
+      changes.push({ field: `split.${uid}`, from: oldAmt, to: null });
+  });
+
+  afterMap.forEach((newAmt, uid) => {
+    const oldAmt = beforeMap.get(uid);
+    if (oldAmt === undefined)
+      changes.push({ field: `split.${uid}`, from: null, to: newAmt });
+    else if (Math.abs(oldAmt - newAmt) >= 0.01)
+      changes.push({ field: `split.${uid}`, from: oldAmt, to: newAmt });
+  });
+
+  return changes;
 }
 
 export function useUpdateExpense() {
   const qc = useQueryClient();
+  const currentUserId = useUserStore(s => s.currentUserId) ?? DEV_USER_ID;
+
   return useMutation({
     mutationFn: async (input: UpdateExpenseInput) => {
+      // `input.before` is the expense snapshot captured by the edit screen
+      // before the user made changes — no extra DB round-trip needed.
+      const prevExpense = input.before ?? null;
+
       const { error: updErr } = await supabase
         .from('expenses')
         .update({
-          title: input.title,
-          amount: input.amount,
-          category: input.category,
-          paid_by: input.paidBy,
-          note: input.note ?? null,
+          title:      input.title,
+          amount:     input.amount,
+          category:   input.category,
+          paid_by:    input.paidBy,
+          note:       input.note ?? null,
           updated_at: new Date().toISOString(),
         })
         .eq('id', input.expenseId);
@@ -257,11 +317,23 @@ export function useUpdateExpense() {
       }));
       const { error: insErr } = await supabase.from('expense_splits').insert(splitRows);
       if (insErr) throw insErr;
+
+      // Write changelog entry — non-fatal: history failure must never roll back a save.
+      if (prevExpense) {
+        const diff = computeExpenseDiff(prevExpense, input);
+        if (diff.length > 0) {
+          const { error: histErr } = await (supabase as any)
+            .from('expense_history')
+            .insert({ expense_id: input.expenseId, changed_by: currentUserId, changes: diff });
+          if (histErr) console.warn('[history] insert failed:', histErr.message);
+        }
+      }
     },
-    onSuccess: (_d, vars) => {
+    onSettled: (_d, _err, vars) => {
       qc.invalidateQueries({ queryKey: qk.expenses.list(vars.groupId) });
       qc.invalidateQueries({ queryKey: qk.expenses.detail(vars.expenseId) });
       qc.invalidateQueries({ queryKey: qk.balances.all });
+      qc.invalidateQueries({ queryKey: qk.expenseHistory.list(vars.expenseId) });
     },
   });
 }

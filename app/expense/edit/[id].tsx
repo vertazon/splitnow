@@ -151,13 +151,24 @@ export default function EditExpenseScreen() {
     updateExpense.mutate(
       {
         expenseId: expense.id,
-        groupId: expense.group_id,
-        title: title.trim(),
-        amount: parsedAmount,
-        category: selectedCatId,
+        groupId:   expense.group_id,
+        title:     title.trim(),
+        amount:    parsedAmount,
+        category:  selectedCatId,
         splitWith: Array.from(selectedPeople),
         paidBy,
         customSplits: resolveCustomSplits(),
+        before: {
+          title:    expense.title,
+          amount:   Number(expense.amount),
+          category: expense.category,
+          paid_by:  expense.paid_by,
+          note:     expense.note,
+          splits:   (expense.splits ?? []).map(s => ({
+            user_id:     s.user_id,
+            amount_owed: Number(s.amount_owed),
+          })),
+        },
       },
       {
         onSuccess: () => {
