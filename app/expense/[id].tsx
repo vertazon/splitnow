@@ -10,6 +10,7 @@ import { useGroupStore } from '@/store/useGroupStore';
 import { useUserStore } from '@/store/useUserStore';
 import type { AvatarColor, ExpenseComment, User } from '@/types/database';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavGuard } from '@/hooks/useNavGuard';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
 import {
@@ -23,7 +24,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -115,6 +116,8 @@ const bubbleStyles = StyleSheet.create({
 export default function ExpenseDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const { safePush } = useNavGuard();
+  const insets = useSafeAreaInsets();
   const groupId = useGroupStore(s => s.currentGroupId);
   const currentUserId = useUserStore(s => s.currentUserId) ?? DEV_USER_ID;
 
@@ -240,7 +243,7 @@ export default function ExpenseDetailScreen() {
           <View style={styles.headerActions}>
             <TouchableOpacity
               style={styles.actionBtn}
-              onPress={() => router.push(`/expense/edit/${expense.id}` as never)}
+              onPress={() => safePush(`/expense/edit/${expense.id}`)}
             >
               <Ionicons name="pencil-outline" size={13} color={colors.text2} />
               <Text style={styles.actionBtnText}>Edit</Text>
@@ -424,7 +427,7 @@ export default function ExpenseDetailScreen() {
         </ScrollView>
 
         {/* Pinned comment input */}
-        <View style={styles.inputBar}>
+        <View style={[styles.inputBar, { paddingBottom: Math.max(insets.bottom, Platform.OS === 'ios' ? 20 : 14) }]}>
           <TextInput
             style={styles.inputField}
             value={commentText}
@@ -598,7 +601,6 @@ const styles = StyleSheet.create({
     gap: 10,
     paddingHorizontal: 16,
     paddingTop: 10,
-    paddingBottom: Platform.OS === 'ios' ? 20 : 14,
     borderTopWidth: 1,
     borderTopColor: colors.border,
     backgroundColor: colors.bg,

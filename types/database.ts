@@ -41,11 +41,13 @@ export interface Group {
 }
 
 export interface GroupMember {
-  group_id:  string;
-  user_id:   string;
-  role:      GroupMemberRole;
-  joined_at: string;
-  left_at:   string | null;
+  group_id:   string;
+  user_id:    string;
+  role:       GroupMemberRole;
+  joined_at:  string;
+  left_at:    string | null;
+  removed_at: string | null;
+  removed_by: string | null;
 }
 
 // Enriched group with computed fields

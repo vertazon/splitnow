@@ -29,7 +29,7 @@ export function useGroups(userId?: string | null) {
       // Fetch groups with their members
       const { data: groups, error: groupErr } = await supabase
         .from('groups')
-        .select('*, members:group_members(user_id, role, left_at, user:users(*))')
+        .select('*, members:group_members(user_id, role, left_at, user:users!group_members_user_id_fkey(*))')
         .in('id', groupIds)
         .is('archived_at', null)
         .order('created_at', { ascending: false });
@@ -97,7 +97,7 @@ export function useGroupDetail(groupId: string | null | undefined) {
     queryFn: async () => {
       const { data: gRaw, error } = await supabase
         .from('groups')
-        .select('*, members:group_members(user_id, role, left_at, user:users(*))')
+        .select('*, members:group_members(user_id, role, left_at, user:users!group_members_user_id_fkey(*))')
         .eq('id', groupId as string)
         .single();
 
@@ -106,7 +106,7 @@ export function useGroupDetail(groupId: string | null | undefined) {
       const g = gRaw as any;
 
       const activeMembers = (g.members ?? [])
-        .filter((m: any) => !m.left_at && m.user)
+        .filter((m: any) => !m.left_at && !m.removed_at && m.user)
         .map((m: any) => m.user as User);
 
       return {
@@ -143,7 +143,7 @@ export function useGroupMembers(groupId: string | null | undefined) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('group_members')
-        .select('user_id, role, joined_at, left_at, user:users(*)')
+        .select('user_id, role, joined_at, left_at, removed_at, user:users!group_members_user_id_fkey(*)')
         .eq('group_id', groupId as string)
         .is('left_at', null)
         .order('joined_at', { ascending: true });
@@ -260,11 +260,67 @@ export function useAddGroupMember() {
 
   return useMutation({
     mutationFn: async (input: { groupId: string; userId: string }) => {
+      // Upsert: reactivates previously left/removed rows instead of creating
+      // duplicate rows, which would break the (group_id, user_id) primary key.
       const { error } = await (supabase as any).from('group_members').upsert({
-        group_id: input.groupId,
-        user_id:  input.userId,
-        role:     'member',
-        left_at:  null,
+        group_id:   input.groupId,
+        user_id:    input.userId,
+        role:       'member',
+        left_at:    null,
+        removed_at: null,
+        removed_by: null,
+      }, { onConflict: 'group_id,user_id' });
+      if (error) throw error;
+    },
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: qk.groups.members(vars.groupId) });
+      qc.invalidateQueries({ queryKey: qk.groups.detail(vars.groupId) });
+      qc.invalidateQueries({ queryKey: qk.groups.all });
+    },
+  });
+}
+
+// ─── useRemoveGroupMember (legacy alias) ──────────────────────────────────────
+// Kept for backward compatibility. New code should use useRemoveMember.
+
+export function useRemoveGroupMember() {
+  return useRemoveMember();
+}
+
+// ─── useLeaveGroup ────────────────────────────────────────────────────────────
+// Calls the leave_group SECURITY DEFINER RPC.
+// Throws 'SOLE_ADMIN' if the caller is the only active admin with others remaining.
+
+export function useLeaveGroup() {
+  const qc = useQueryClient();
+  const currentUserId = useUserStore(s => s.currentUserId) ?? DEV_USER_ID;
+
+  return useMutation({
+    mutationFn: async (groupId: string) => {
+      const { error } = await (supabase as any).rpc('leave_group', {
+        p_group_id: groupId,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.groups.all });
+      qc.invalidateQueries({ queryKey: qk.groups.list(currentUserId) });
+    },
+  });
+}
+
+// ─── useRemoveMember ─────────────────────────────────────────────────────────
+// Calls the remove_member SECURITY DEFINER RPC.
+// Actor must be admin. Cannot remove self.
+
+export function useRemoveMember() {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input: { groupId: string; userId: string }) => {
+      const { error } = await (supabase as any).rpc('remove_member', {
+        p_group_id:  input.groupId,
+        p_target_id: input.userId,
       });
       if (error) throw error;
     },
@@ -276,24 +332,47 @@ export function useAddGroupMember() {
   });
 }
 
-// ─── useRemoveGroupMember ─────────────────────────────────────────────────────
+// ─── useUpdateMemberRole ─────────────────────────────────────────────────────
+// Promote or demote a member. Admins only.
+// Throws 'LAST_ADMIN' if demoting the sole active admin.
 
-export function useRemoveGroupMember() {
+export function useUpdateMemberRole() {
   const qc = useQueryClient();
 
   return useMutation({
-    mutationFn: async (input: { groupId: string; userId: string }) => {
-      const { error } = await (supabase as any)
-        .from('group_members')
-        .update({ left_at: new Date().toISOString() })
-        .eq('group_id', input.groupId)
-        .eq('user_id', input.userId);
+    mutationFn: async (input: { groupId: string; userId: string; role: 'admin' | 'member' }) => {
+      const { error } = await (supabase as any).rpc('update_member_role', {
+        p_group_id:  input.groupId,
+        p_target_id: input.userId,
+        p_new_role:  input.role,
+      });
       if (error) throw error;
     },
     onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: qk.groups.members(vars.groupId) });
       qc.invalidateQueries({ queryKey: qk.groups.detail(vars.groupId) });
+    },
+  });
+}
+
+// ─── useTransferAdminAndLeave ─────────────────────────────────────────────────
+// Atomically promotes a chosen member then leaves — for the sole-admin case.
+
+export function useTransferAdminAndLeave() {
+  const qc = useQueryClient();
+  const currentUserId = useUserStore(s => s.currentUserId) ?? DEV_USER_ID;
+
+  return useMutation({
+    mutationFn: async (input: { groupId: string; newAdminId: string }) => {
+      const { error } = await (supabase as any).rpc('transfer_admin_and_leave', {
+        p_group_id:     input.groupId,
+        p_new_admin_id: input.newAdminId,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
       qc.invalidateQueries({ queryKey: qk.groups.all });
+      qc.invalidateQueries({ queryKey: qk.groups.list(currentUserId) });
     },
   });
 }

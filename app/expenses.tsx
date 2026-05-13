@@ -11,6 +11,7 @@ import { qk } from '@/lib/queryKeys';
 import { useGroupStore } from '@/store/useGroupStore';
 import { useUserStore } from '@/store/useUserStore';
 import type { AvatarColor } from '@/types/database';
+import { useNavGuard } from '@/hooks/useNavGuard';
 import { useQueries, useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
@@ -50,6 +51,7 @@ const ALL_FILTERS: { id: Filter; label: string }[] = [
 
 export default function ExpensesScreen() {
   const router = useRouter();
+  const { safePush } = useNavGuard();
   const groupId = useGroupStore(s => s.currentGroupId);
   const currentUserId = useUserStore(s => s.currentUserId) ?? DEV_USER_ID;
   const isAllMode = !groupId;
@@ -163,7 +165,7 @@ export default function ExpensesScreen() {
         exp={item}
         memberMap={memberMap}
         currentUserId={currentUserId}
-        onPress={() => router.push(`/expense/${item.id}` as never)}
+        onPress={() => safePush(`/expense/${item.id}`)}
         groupBadge={isAllMode ? groupBadgeMap.get(item.group_id) : undefined}
       />
       {index < filtered.length - 1 && <View style={styles.divider} />}

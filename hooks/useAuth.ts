@@ -127,9 +127,14 @@ export function useAuthInit() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (session?.user) {
-          setCurrentUserId(session.user.id);
           // Re-fetch profile on sign-in; token refresh doesn't change the profile.
           if (event === 'SIGNED_IN') {
+            // Hold the AuthGuard in loading state while we fetch the profile.
+            // Without this, AuthGuard fires between setCurrentUserId() and
+            // setCurrentUser(), sees name=null, and briefly redirects to the
+            // profile-setup screen even for returning users.
+            setLoading(true);
+            setCurrentUserId(session.user.id);
             const profile = await fetchProfile(session.user.id);
             // Same guard: don't call setCurrentUser(null) for new users who
             // haven't completed profile setup yet — it would wipe currentUserId.
@@ -139,6 +144,11 @@ export function useAuthInit() {
                 await fetchOrCreateUserGroup(session.user.id, profile.name);
               }
             }
+            // Release the guard — AuthGuard now has the full picture and will
+            // route correctly (tabs for returning users, profile for new users).
+            setLoading(false);
+          } else {
+            setCurrentUserId(session.user.id);
           }
         } else {
           clearSession();

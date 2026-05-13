@@ -1,4 +1,5 @@
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { useRef, useCallback } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, avatarColors } from '@/constants/colors';
 import { fonts } from '@/constants/typography';
@@ -126,6 +127,14 @@ export function ActivityRow({
   onPress: () => void;
   groupBadge?: string;
 }) {
+  const pressing = useRef(false);
+  const handlePress = useCallback(() => {
+    if (pressing.current) return;
+    pressing.current = true;
+    onPress();
+    setTimeout(() => { pressing.current = false; }, 800);
+  }, [onPress]);
+
   const cat = categories.find(c => c.id === exp.category);
   const emoji = cat?.emoji ?? '📦';
   const net = getNetBalance(exp, currentUserId);
@@ -140,7 +149,7 @@ export function ActivityRow({
   const dateStr = formatActivityDate(exp.created_at);
 
   return (
-    <TouchableOpacity onPress={onPress} activeOpacity={0.65}>
+    <TouchableOpacity onPress={handlePress} activeOpacity={0.65}>
       <View style={rowStyles.row}>
         <View style={rowStyles.iconBox}>
           <Text style={{ fontSize: 18 }}>{emoji}</Text>

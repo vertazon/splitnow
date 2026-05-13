@@ -16,6 +16,7 @@ import { initialsFromName } from '@/constants/dateFormat';
 import { categories } from '@/constants/sampleData';
 import { fonts } from '@/constants/typography';
 import { useBalances, useNetBalance } from '@/hooks/useBalances';
+import { useNavGuard } from '@/hooks/useNavGuard';
 import { useAddExpense, useExpenses } from '@/hooks/useExpenses';
 import { useGroupDetail, useGroupMembers } from '@/hooks/useGroups';
 import { useSettleUp, useSettlements } from '@/hooks/useSettlements';
@@ -467,6 +468,7 @@ const GROUP_TYPE_LABEL: Record<string, string> = {
 
 export default function GroupDetailScreen() {
   const router = useRouter();
+  const { safePush } = useNavGuard();
   const insets = useSafeAreaInsets();
   const { id: groupId } = useLocalSearchParams<{ id: string }>();
   const currentUserId = useUserStore(s => s.currentUserId) ?? DEV_USER_ID;
@@ -671,7 +673,7 @@ export default function GroupDetailScreen() {
                       exp={item.data}
                       memberMap={memberMap}
                       currentUserId={currentUserId}
-                      onPress={() => router.push(`/expense/${item.data.id}` as never)}
+                      onPress={() => safePush(`/expense/${item.data.id}`)}
                     />
                   ) : (
                     <SettlementRow

@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { View } from 'react-native';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
@@ -121,8 +122,11 @@ export default function RootLayout() {
     }
   }, [fontsLoaded, isAuthLoading]);
 
-  // Keep the splash screen visible while fonts or session are loading
-  if (!fontsLoaded || isAuthLoading) return null;
+  // Keep the splash screen visible while fonts or session are loading.
+  // Return a dark view (not null) so that if isLoading briefly becomes true
+  // again after the splash is dismissed (e.g. during OTP sign-in profile fetch),
+  // the user sees the app background instead of a white screen.
+  if (!fontsLoaded || isAuthLoading) return <View style={{ flex: 1, backgroundColor: '#0D0D0D' }} />;
 
   return (
     <QueryClientProvider client={queryClient}>

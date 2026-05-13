@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback } from 'react';
+import { useNavGuard } from '@/hooks/useNavGuard';
 import {
   View,
   Text,
@@ -36,6 +37,7 @@ import { qk } from '@/lib/queryKeys';
 
 export default function HomeScreen() {
   const router = useRouter();
+  const { safePush } = useNavGuard();
   const groupId = useGroupStore(s => s.currentGroupId);
   const setCurrentGroupId = useGroupStore(s => s.setCurrentGroupId);
   const clearGroup = useGroupStore(s => s.clearGroup);
@@ -356,7 +358,7 @@ export default function HomeScreen() {
                     exp={exp}
                     memberMap={memberMap}
                     currentUserId={currentUserId}
-                    onPress={() => router.push(`/expense/${exp.id}` as never)}
+                    onPress={() => safePush(`/expense/${exp.id}`)}
                     groupBadge={!groupId ? groupBadgeMap.get(exp.group_id) : undefined}
                   />
                   {i < arr.length - 1 && <View style={styles.divider} />}
