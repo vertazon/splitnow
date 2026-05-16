@@ -1,6 +1,7 @@
-import { useEffect } from 'react';
-import { View } from 'react-native';
+import { useEffect, useRef } from 'react';
+import { Platform, View } from 'react-native';
 import { Stack, useRouter, useSegments } from 'expo-router';
+import * as Notifications from 'expo-notifications';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import * as Linking from 'expo-linking';
@@ -17,6 +18,11 @@ import { queryClient } from '@/lib/queryClient';
 import { useAuthInit } from '@/hooks/useAuth';
 import { useUserStore } from '@/store/useUserStore';
 import { usePendingInvite } from '@/store/usePendingInvite';
+import {
+  registerForPushNotificationsAsync,
+  upsertPushToken,
+  handleNotificationTap,
+} from '@/lib/notifications';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -100,6 +106,37 @@ function PendingInviteProcessor() {
   return null;
 }
 
+// ─── Push notification setup ──────────────────────────────────────────────────
+// Registers for push once the user is authenticated and wires the tap handler.
+
+function PushNotificationSetup() {
+  const router        = useRouter();
+  const currentUserId = useUserStore(s => s.currentUserId);
+  const tapListenerRef = useRef<Notifications.EventSubscription | null>(null);
+
+  useEffect(() => {
+    if (!currentUserId) return;
+
+    // Register token
+    registerForPushNotificationsAsync().then(token => {
+      if (token) {
+        upsertPushToken(currentUserId, token, Platform.OS as 'ios' | 'android');
+      }
+    });
+
+    // Tap listener — fires when user taps a notification while app is backgrounded/closed
+    tapListenerRef.current = Notifications.addNotificationResponseReceivedListener(
+      response => handleNotificationTap(response, router),
+    );
+
+    return () => {
+      tapListenerRef.current?.remove();
+    };
+  }, [currentUserId]);
+
+  return null;
+}
+
 // ─── Root layout ──────────────────────────────────────────────────────────────
 
 export default function RootLayout() {
@@ -134,6 +171,7 @@ export default function RootLayout() {
       <DeepLinkCapture />
       <AuthGuard />
       <PendingInviteProcessor />
+      <PushNotificationSetup />
       <Stack screenOptions={{ headerShown: false, animation: 'fade' }}>
         <Stack.Screen name="(auth)"            options={{ animation: 'none' }} />
         <Stack.Screen name="(tabs)"            options={{ animation: 'none' }} />
@@ -147,6 +185,8 @@ export default function RootLayout() {
         <Stack.Screen name="groups/[id]"       options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="groups/create"     options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
         <Stack.Screen name="groups/edit/[id]"  options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="activity"                options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="notification-settings"   options={{ animation: 'slide_from_right' }} />
       </Stack>
     </QueryClientProvider>
   );

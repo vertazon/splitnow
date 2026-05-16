@@ -47,4 +47,9 @@ export const qk = {
     all: ['expenseHistory'] as const,
     list: (expenseId: string | null | undefined) => ['expenseHistory', expenseId] as const,
   },
+  activity: {
+    all: ['activity'] as const,
+    list: (userId: string | null | undefined) => ['activity', 'list', userId] as const,
+    unread: (userId: string | null | undefined) => ['activity', 'unread', userId] as const,
+  },
 } as const;

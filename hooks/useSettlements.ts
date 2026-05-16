@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useUserStore } from '@/store/useUserStore';
 import { DEV_USER_ID } from '@/lib/auth';
+import { fanOutActivity } from '@/lib/activityFanOut';
 import { qk } from '@/lib/queryKeys';
 import type { Settlement } from '@/types/database';
 
@@ -54,22 +55,38 @@ export function useSettleUp() {
 
   return useMutation({
     mutationFn: async (input: SettleUpInput) => {
-      // Read fresh at execution time so a user-switch mid-session can't leak
-      // a settlement from the wrong account.
       const currentUserId = useUserStore.getState().currentUserId ?? DEV_USER_ID;
-      const { error } = await supabase.from('settlements').insert({
-        group_id:  input.groupId,
-        from_user: currentUserId,
-        to_user:   input.toUserId,
-        amount:    input.amount,
-        upi_ref:   input.upiRef ?? null,
-        status:    'completed',
-      });
+      const { data: settlement, error } = await supabase
+        .from('settlements')
+        .insert({
+          group_id:  input.groupId,
+          from_user: currentUserId,
+          to_user:   input.toUserId,
+          amount:    input.amount,
+          upi_ref:   input.upiRef ?? null,
+          status:    'completed',
+        })
+        .select()
+        .single();
       if (error) throw error;
+      return { settlement, currentUserId };
     },
-    onSuccess: (_d, vars) => {
+    onSuccess: ({ settlement, currentUserId }, vars) => {
       qc.invalidateQueries({ queryKey: qk.balances.all });
       qc.invalidateQueries({ queryKey: qk.settlements.list(vars.groupId) });
+
+      // Notify the recipient AND the actor (so both see it in their feed)
+      const actorName = useUserStore.getState().currentUser?.name ?? 'Someone';
+      const settlementRecipients = [...new Set([vars.toUserId, currentUserId])];
+      fanOutActivity(settlementRecipients.map(uid => ({
+        user_id:  uid,
+        actor_id: currentUserId,
+        type:     'settlement_received' as const,
+        ref_id:   settlement?.id ?? null,
+        ref_type: 'settlement' as const,
+        group_id: vars.groupId,
+        meta: { amount: vars.amount, actor_name: actorName },
+      })));
     },
   });
 }

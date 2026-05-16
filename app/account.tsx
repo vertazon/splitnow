@@ -182,6 +182,17 @@ export default function AccountScreen() {
           />
         </View>
 
+        {/* ── Preferences section ── */}
+        <SectionLabel label="PREFERENCES" />
+        <View style={styles.menuCard}>
+          <MenuItem
+            icon="notifications-outline"
+            label="Notifications"
+            sub="Push alerts & activity preferences"
+            onPress={() => router.push('/notification-settings' as never)}
+          />
+        </View>
+
         {/* ── Sign out ── */}
         <View style={[styles.menuCard, styles.menuCardLast]}>
           <MenuItem

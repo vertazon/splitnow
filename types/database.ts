@@ -25,6 +25,12 @@ export interface User {
   trial_end:                string | null;
   razorpay_customer_id:     string | null;
   razorpay_subscription_id: string | null;
+  notification_prefs: {
+    expense_added:       boolean;
+    expense_edited:      boolean;
+    settlement_received: boolean;
+    comment_added:       boolean;
+  } | null;
 }
 
 export type GroupType = 'flat' | 'trip' | 'custom' | 'personal';
@@ -143,6 +149,28 @@ export type CommentInsert    = Omit<ExpenseComment, 'id' | 'created_at' | 'paren
 export type SettlementInsert      = Omit<Settlement,      'id' | 'settled_at' | 'status'>       & Partial<Pick<Settlement,      'id' | 'settled_at' | 'status'>>;
 export type ExpenseHistoryInsert  = Omit<ExpenseHistory,  'id' | 'created_at'>                   & Partial<Pick<ExpenseHistory,  'id' | 'created_at'>>;
 
+export type ActivityType =
+  | 'expense_added'
+  | 'expense_edited'
+  | 'expense_deleted'
+  | 'settlement_received'
+  | 'comment_added';
+
+export interface Activity {
+  id:         string;
+  user_id:    string;   // recipient
+  actor_id:   string;   // who triggered the event
+  type:       ActivityType;
+  ref_id:     string | null;
+  ref_type:   'expense' | 'settlement' | 'comment' | null;
+  group_id:   string | null;
+  meta:       Record<string, unknown> | null;
+  read:       boolean;
+  created_at: string;
+}
+
+export type ActivityInsert = Omit<Activity, 'id' | 'created_at' | 'read'> & Partial<Pick<Activity, 'id' | 'created_at' | 'read'>>;
+
 // Database type consumed by `createClient<Database>` in lib/supabase.ts.
 //
 // `Database['public']` must satisfy postgrest-js's `GenericSchema`:
@@ -165,6 +193,7 @@ export interface Database {
       expense_comments:  Tbl<ExpenseComment, CommentInsert>;
       settlements:       Tbl<Settlement,     SettlementInsert>;
       expense_history:   Tbl<ExpenseHistory, ExpenseHistoryInsert>;
+      activity:          Tbl<Activity,       ActivityInsert>;
     };
     Views: { [_ in never]: never };
     Functions: { [_ in never]: never };

@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase';
 import { qk } from '@/lib/queryKeys';
 import { useUserStore } from '@/store/useUserStore';
 import { DEV_USER_ID } from '@/lib/auth';
+import { fanOutActivity } from '@/lib/activityFanOut';
 import type { Expense, ExpenseSplit, ExpenseComment, ExpenseHistoryDiff } from '@/types/database';
 
 // Joined shape returned by useExpenses — splits + comments live alongside the row
@@ -205,6 +206,29 @@ export function useAddExpense() {
     onError: (_err, _vars, ctx) => {
       if (ctx?.previous) qc.setQueryData(ctx.key, ctx.previous);
     },
+    onSuccess: (expense, vars) => {
+      if (!expense) return;
+      const currentUserId = useUserStore.getState().currentUserId ?? DEV_USER_ID;
+      const actorName = useUserStore.getState().currentUser?.name ?? 'Someone';
+      // Notify ALL split members including the actor (so they see "You added X" in their feed)
+      const recipients = [...new Set(vars.splitWith)];
+      if (recipients.length > 0) {
+        fanOutActivity(recipients.map(uid => ({
+          user_id:  uid,
+          actor_id: currentUserId,
+          type:     'expense_added' as const,
+          ref_id:   expense.id,
+          ref_type: 'expense' as const,
+          group_id: vars.groupId,
+          meta: {
+            title:      vars.title,
+            amount:     vars.amount,
+            category:   vars.category,
+            actor_name: actorName,
+          },
+        })));
+      }
+    },
     onSettled: (_data, _err, vars) => {
       qc.invalidateQueries({ queryKey: qk.expenses.list(vars.groupId) });
       qc.invalidateQueries({ queryKey: qk.balances.all });
@@ -328,6 +352,27 @@ export function useUpdateExpense() {
           if (histErr) console.warn('[history] insert failed:', histErr.message);
         }
       }
+
+      // Fan-out: notify ALL split members including the editor
+      const actorName = useUserStore.getState().currentUser?.name ?? 'Someone';
+      const recipients = [...new Set(input.splitWith)];
+      if (recipients.length > 0) {
+        fanOutActivity(recipients.map(uid => ({
+          user_id:  uid,
+          actor_id: currentUserId,
+          type:     'expense_edited' as const,
+          ref_id:   input.expenseId,
+          ref_type: 'expense' as const,
+          group_id: input.groupId,
+          meta: {
+            title:      input.title,
+            amount:     input.amount,
+            category:   input.category,
+            old_amount: prevExpense?.amount ?? null,
+            actor_name: actorName,
+          },
+        })));
+      }
     },
     onSettled: (_d, _err, vars) => {
       qc.invalidateQueries({ queryKey: qk.expenses.list(vars.groupId) });
@@ -394,6 +439,37 @@ export function useAddComment() {
     onSuccess: (_d, vars) => {
       qc.invalidateQueries({ queryKey: qk.expenses.detail(vars.expenseId) });
       qc.invalidateQueries({ queryKey: qk.expenses.list(vars.groupId) });
+
+      // Fan-out: notify all involved members including the commenter
+      const actorName = useUserStore.getState().currentUser?.name ?? 'Someone';
+      supabase
+        .from('expenses')
+        .select('paid_by, title, splits:expense_splits(user_id)')
+        .eq('id', vars.expenseId)
+        .maybeSingle()
+        .then(({ data: exp }) => {
+          if (!exp) return;
+          const involved = new Set<string>([
+            vars.userId,  // include the commenter themselves
+            ...(exp.splits ?? []).map((s: any) => s.user_id),
+            ...(exp.paid_by ? [exp.paid_by] : []),
+          ]);
+          const recipients = Array.from(involved);
+          if (recipients.length === 0) return;
+          fanOutActivity(recipients.map(uid => ({
+            user_id:  uid,
+            actor_id: vars.userId,
+            type:     'comment_added' as const,
+            ref_id:   vars.expenseId,
+            ref_type: 'expense' as const,
+            group_id: vars.groupId,
+            meta: {
+              expense_title: exp.title,
+              comment_text:  vars.text,
+              actor_name:    actorName,
+            },
+          })));
+        });
     },
   });
 }

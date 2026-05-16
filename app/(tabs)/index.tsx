@@ -27,6 +27,8 @@ import { fetchBalancesForGroup } from '@/hooks/useBalances';
 import { fetchMembersForGroup } from '@/hooks/useMembers';
 import { useGroups } from '@/hooks/useGroups';
 import { useSettleUp } from '@/hooks/useSettlements';
+import { useUnreadCount } from '@/hooks/useActivity';
+import { Ionicons } from '@expo/vector-icons';
 import { BalanceRow } from '@/components/BalanceCard';
 import { ToastNotification } from '@/components/ToastNotification';
 import { ActivityRow } from '@/components/ActivityRow';
@@ -196,6 +198,8 @@ export default function HomeScreen() {
     return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
   }).length;
 
+  const { data: unreadCount = 0 } = useUnreadCount(currentUserId);
+
   // Current user profile for header
   const currentUser = useUserStore(s => s.currentUser);
   const firstName = currentUser?.name?.split(' ')[0] ?? 'there';
@@ -226,11 +230,25 @@ export default function HomeScreen() {
               {new Date().toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}
             </Text>
           </View>
-          <TouchableOpacity onPress={() => router.push('/account' as never)} activeOpacity={0.75}>
-            <View style={[styles.avatar, { backgroundColor: av.bg }]}>
-              <Text style={[styles.avatarText, { color: av.text }]}>{userInitials}</Text>
-            </View>
-          </TouchableOpacity>
+          <View style={styles.headerRight}>
+            <TouchableOpacity
+              style={styles.bellWrap}
+              onPress={() => router.push('/activity' as never)}
+              activeOpacity={0.75}
+            >
+              <Ionicons name="notifications-outline" size={22} color={colors.text} />
+              {unreadCount > 0 && (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => router.push('/account' as never)} activeOpacity={0.75}>
+              <View style={[styles.avatar, { backgroundColor: av.bg }]}>
+                <Text style={[styles.avatarText, { color: av.text }]}>{userInitials}</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Group context chip row — only shown when user has groups */}
@@ -387,6 +405,30 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 10,
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  bellWrap: {
+    width: 36, height: 36, borderRadius: 12,
+    backgroundColor: colors.cardElevated,
+    borderWidth: 1, borderColor: colors.border,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  badge: {
+    position: 'absolute',
+    top: -4, right: -4,
+    width: 16, height: 16, borderRadius: 8,
+    backgroundColor: colors.danger,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  badgeText: {
+    fontFamily: fonts.dmSansSemiBold,
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#fff',
   },
   greeting: {
     fontFamily: fonts.dmSans,
