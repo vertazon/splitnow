@@ -8,14 +8,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { colors } from '@/constants/colors';
 import { fonts } from '@/constants/typography';
-import { sendOtp, verifyOtp } from '@/hooks/useAuth';
+import { sendEmailOtp, verifyEmailOtp } from '@/hooks/useAuth';
 
 const OTP_LENGTH = 6;
 const RESEND_SECONDS = 30;
 
 export default function VerifyScreen() {
   const router = useRouter();
-  const { phone } = useLocalSearchParams<{ phone: string }>();
+  const { email } = useLocalSearchParams<{ email: string }>();
 
   const [digits, setDigits] = useState<string[]>(Array(OTP_LENGTH).fill(''));
   const [error, setError]   = useState<string | null>(null);
@@ -38,10 +38,10 @@ export default function VerifyScreen() {
   }, []);
 
   const handleVerify = useCallback(async (code: string) => {
-    if (!phone || loading) return;
+    if (!email || loading) return;
     setError(null);
     setLoading(true);
-    const { error: verifyError } = await verifyOtp(phone, code);
+    const { error: verifyError } = await verifyEmailOtp(email, code);
     setLoading(false);
     if (verifyError) {
       setError(verifyError);
@@ -52,21 +52,31 @@ export default function VerifyScreen() {
     }
     // onAuthStateChange in useAuthInit will fire and populate the store.
     // AuthGuard in _layout.tsx will redirect based on whether name is set.
-  }, [phone, loading]);
+  }, [email, loading]);
 
   const handleDigitChange = (idx: number, val: string) => {
-    const digit = val.replace(/\D/g, '').slice(-1);
+    const cleaned = val.replace(/\D/g, '');
+
+    // AutoFill / paste — full OTP arrives as a multi-char string
+    if (cleaned.length > 1) {
+      const next = Array(OTP_LENGTH).fill('');
+      cleaned.slice(0, OTP_LENGTH).split('').forEach((d, i) => { next[i] = d; });
+      setDigits(next);
+      setError(null);
+      const focusIdx = Math.min(cleaned.length, OTP_LENGTH - 1);
+      inputRefs.current[focusIdx]?.focus();
+      if (next.every(d => d !== '')) handleVerify(next.join(''));
+      return;
+    }
+
+    // Single digit typed manually
+    const digit = cleaned.slice(-1);
     const next = [...digits];
     next[idx] = digit;
     setDigits(next);
     setError(null);
-
-    if (digit && idx < OTP_LENGTH - 1) {
-      inputRefs.current[idx + 1]?.focus();
-    }
-    if (next.every(d => d !== '')) {
-      handleVerify(next.join(''));
-    }
+    if (digit && idx < OTP_LENGTH - 1) inputRefs.current[idx + 1]?.focus();
+    if (next.every(d => d !== '')) handleVerify(next.join(''));
   };
 
   const handleKeyPress = (idx: number, key: string) => {
@@ -79,17 +89,21 @@ export default function VerifyScreen() {
   };
 
   const handleResend = async () => {
-    if (resendCountdown > 0 || !phone) return;
+    if (resendCountdown > 0 || !email) return;
     setError(null);
     setDigits(Array(OTP_LENGTH).fill(''));
-    setResendCountdown(RESEND_SECONDS);
     inputRefs.current[0]?.focus();
-    await sendOtp(phone);
+    const { error: resendError } = await sendEmailOtp(email);
+    if (resendError) {
+      setError(resendError);
+      return;
+    }
+    setResendCountdown(RESEND_SECONDS);
   };
 
-  // Masked phone display: +91 98765 4****
-  const maskedPhone = phone
-    ? phone.replace(/(\+91)(\d{5})(\d{4})(\d{1})/, '$1 $2 ****')
+  // Masked email display: ar***@gmail.com
+  const maskedEmail = email
+    ? email.replace(/^(.{2})(.*)(@.*)$/, (_, a, b, c) => a + '*'.repeat(Math.min(b.length, 4)) + c)
     : '';
 
   return (
@@ -107,7 +121,7 @@ export default function VerifyScreen() {
           {/* Heading */}
           <Text style={styles.title}>Enter OTP</Text>
           <View style={styles.subRow}>
-            <Text style={styles.sub}>Sent to {maskedPhone}</Text>
+            <Text style={styles.sub}>Sent to {maskedEmail}</Text>
             <TouchableOpacity onPress={() => router.back()}>
               <Text style={styles.changeBtn}> · Change</Text>
             </TouchableOpacity>
@@ -124,7 +138,8 @@ export default function VerifyScreen() {
                 onChangeText={val => handleDigitChange(i, val)}
                 onKeyPress={({ nativeEvent }) => handleKeyPress(i, nativeEvent.key)}
                 keyboardType="number-pad"
-                maxLength={1}
+                maxLength={OTP_LENGTH}
+                textContentType="oneTimeCode"
                 selectTextOnFocus
                 caretHidden
               />

@@ -62,7 +62,7 @@ function buildPayload(record: ActivityRecord): { title: string; body: string } {
         body:  String(meta.comment_text ?? ''),
       };
     default:
-      return { title: 'SplitNow', body: 'You have a new notification' };
+      return { title: 'SplitNow', body: 'You have a new notification' }; // APP_NAME — update when name is finalised
   }
 }
 

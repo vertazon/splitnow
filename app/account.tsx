@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -16,6 +16,7 @@ import { fonts } from '@/constants/typography';
 import { initialsFromName } from '@/constants/dateFormat';
 import { signOut } from '@/hooks/useAuth';
 import { useUserStore } from '@/store/useUserStore';
+import { supabase } from '@/lib/supabase';
 import type { AvatarColor } from '@/types/database';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -94,6 +95,12 @@ export default function AccountScreen() {
   const initials    = initialsFromName(currentUser?.name);
   const hasUpi      = !!currentUser?.upi_id;
 
+  // Email comes from Supabase auth session (not stored in public.users)
+  const [authEmail, setAuthEmail] = useState<string | null>(null);
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => setAuthEmail(data.user?.email ?? null));
+  }, []);
+
   const handleSignOut = useCallback(() => {
     Alert.alert(
       'Sign out',
@@ -137,9 +144,12 @@ export default function AccountScreen() {
           </View>
           <View style={styles.userMeta}>
             <Text style={styles.userName}>{currentUser?.name ?? '—'}</Text>
-            {currentUser?.phone ? (
-              <Text style={styles.userPhone}>{formatPhone(currentUser.phone)}</Text>
-            ) : null}
+            {currentUser?.phone
+              ? <Text style={styles.userPhone}>{formatPhone(currentUser.phone)}</Text>
+              : authEmail
+                ? <Text style={styles.userPhone}>{authEmail}</Text>
+                : null
+            }
             <View style={styles.upiRow}>
               <View style={[styles.upiDot, hasUpi && styles.upiDotActive]} />
               <Text style={[styles.upiText, hasUpi && styles.upiTextActive]}>

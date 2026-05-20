@@ -13,6 +13,7 @@ Always read these before making any design, UX, or feature decision:
 | `@docs/06-microcopy.md` | Exact copy strings, labels, toast messages, number formatting |
 | `@docs/SplitNow.html` | **PRIMARY UI reference** — all screens including stack screens. Plus Jakarta Sans, #00D49A accent. Start here for any UI work. |
 | `@docs/07-activity-notifications-plan.md` | Full implementation plan: activity feed, push notifications, expense changelog, notification settings |
+| `@docs/08-go-live-checklist.md` | App Store + Play Store launch checklist: mandatory requirements, step-by-step submission sequence, store listing copy |
 
 **How to use in Claude Code session:**
 ```

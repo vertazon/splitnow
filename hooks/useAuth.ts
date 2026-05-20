@@ -164,6 +164,32 @@ export function useAuthInit() {
 
 // ─── Auth actions ─────────────────────────────────────────────────────────────
 
+// ─── Email OTP (current auth method) ─────────────────────────────────────────
+
+/** Send a 6-digit OTP to the given email address via Supabase. */
+export async function sendEmailOtp(email: string): Promise<{ error: string | null }> {
+  const { error } = await supabase.auth.signInWithOtp({
+    email,
+    options: { shouldCreateUser: true },
+  });
+  return { error: error?.message ?? null };
+}
+
+/** Verify the email OTP token. */
+export async function verifyEmailOtp(
+  email: string,
+  token: string,
+): Promise<{ error: string | null }> {
+  const { error } = await supabase.auth.verifyOtp({
+    email,
+    token,
+    type: 'email',
+  });
+  return { error: error?.message ?? null };
+}
+
+// ─── Phone OTP (reserved for future migration) ────────────────────────────────
+
 /** Format a 10-digit Indian mobile number to E.164 (+91XXXXXXXXXX). */
 export function toE164(digits: string): string {
   const clean = digits.replace(/\D/g, '').slice(-10);
@@ -176,7 +202,7 @@ export async function sendOtp(phone: string): Promise<{ error: string | null }> 
   return { error: error?.message ?? null };
 }
 
-/** Verify the OTP. Returns the new session or an error. */
+/** Verify the SMS OTP. */
 export async function verifyOtp(
   phone: string,
   token: string,

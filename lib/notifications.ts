@@ -2,6 +2,7 @@ import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import { supabase } from '@/lib/supabase';
+import { APP_NAME } from '@/constants/app';
 import type { Router } from 'expo-router';
 
 // Show alerts + play sound while the app is in the foreground
@@ -37,7 +38,7 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
   // Android requires a notification channel
   if (Platform.OS === 'android') {
     await Notifications.setNotificationChannelAsync('default', {
-      name: 'SplitNow',
+      name: APP_NAME,
       importance: Notifications.AndroidImportance.MAX,
       vibrationPattern: [0, 250, 250, 250],
       lightColor: '#00D49A',

@@ -2,36 +2,37 @@ import { useState, useRef } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
   StyleSheet, KeyboardAvoidingView, Platform,
-  ScrollView, ActivityIndicator,
+  ScrollView, ActivityIndicator, Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { colors } from '@/constants/colors';
 import { fonts } from '@/constants/typography';
-import { sendOtp, toE164 } from '@/hooks/useAuth';
+import { APP_NAME } from '@/constants/app';
+import { sendEmailOtp } from '@/hooks/useAuth';
 
-export default function PhoneScreen() {
-  const router = useRouter();
+export default function EmailScreen() {
+  const router   = useRouter();
   const inputRef = useRef<TextInput>(null);
 
-  const [digits, setDigits] = useState('');
-  const [error, setError]   = useState<string | null>(null);
+  const [email, setEmail]     = useState('');
+  const [error, setError]     = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const isValid = digits.replace(/\D/g, '').length === 10;
+  // Basic email validation
+  const isValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
 
   const handleSend = async () => {
     if (!isValid || loading) return;
     setError(null);
     setLoading(true);
-    const phone = toE164(digits);
-    const { error: otpError } = await sendOtp(phone);
+    const { error: otpError } = await sendEmailOtp(email.trim().toLowerCase());
     setLoading(false);
     if (otpError) {
       setError(otpError);
       return;
     }
-    router.push({ pathname: '/(auth)/verify', params: { phone } } as never);
+    router.push({ pathname: '/(auth)/verify', params: { email: email.trim().toLowerCase() } } as never);
   };
 
   return (
@@ -47,37 +48,33 @@ export default function PhoneScreen() {
         >
           {/* Logo */}
           <View style={styles.logoWrap}>
-            <Text style={styles.logoMark}>💸</Text>
-            <Text style={styles.logoText}>SplitNow</Text>
+            <Image
+              source={require('@/assets/images/icon.png')}
+              style={styles.logoMark}
+              resizeMode="contain"
+            />
+            <Text style={styles.logoText}>{APP_NAME}</Text>
           </View>
 
           {/* Heading */}
-          <Text style={styles.title}>Enter your number</Text>
+          <Text style={styles.title}>Enter your email</Text>
           <Text style={styles.sub}>We'll send a 6-digit OTP to verify your identity.</Text>
 
-          {/* Phone input */}
-          <View style={styles.inputRow}>
-            <View style={styles.countryChip}>
-              <Text style={styles.flag}>🇮🇳</Text>
-              <Text style={styles.code}>+91</Text>
-            </View>
-            <TextInput
-              ref={inputRef}
-              style={styles.phoneInput}
-              value={digits}
-              onChangeText={t => {
-                setError(null);
-                setDigits(t.replace(/\D/g, '').slice(0, 10));
-              }}
-              placeholder="98765 43210"
-              placeholderTextColor={colors.text3}
-              keyboardType="number-pad"
-              returnKeyType="send"
-              onSubmitEditing={handleSend}
-              maxLength={10}
-              autoFocus
-            />
-          </View>
+          {/* Email input */}
+          <TextInput
+            ref={inputRef}
+            style={[styles.emailInput, error ? styles.emailInputError : null]}
+            value={email}
+            onChangeText={t => { setError(null); setEmail(t); }}
+            placeholder="you@example.com"
+            placeholderTextColor={colors.text3}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            autoCorrect={false}
+            returnKeyType="send"
+            onSubmitEditing={handleSend}
+            autoFocus
+          />
 
           {/* Error */}
           {error && <Text style={styles.error}>{error}</Text>}
@@ -117,7 +114,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   logoWrap: { alignItems: 'center', marginBottom: 56 },
-  logoMark: { fontSize: 48, marginBottom: 8 },
+  logoMark: {
+    width: 72,
+    height: 72,
+    borderRadius: 18,
+    marginBottom: 12,
+  },
   logoText: {
     fontFamily: fonts.syne,
     fontSize: 28,
@@ -137,45 +139,23 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.text2,
     lineHeight: 20,
-    marginBottom: 32,
+    marginBottom: 24,
   },
-  inputRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginBottom: 16,
-  },
-  countryChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
+  emailInput: {
     backgroundColor: colors.cardElevated,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-  },
-  flag: { fontSize: 18 },
-  code: {
+    borderWidth: 1.5,
+    borderColor: colors.borderEmphasis,
+    borderRadius: 16,
+    paddingHorizontal: 18,
+    paddingVertical: 16,
     fontFamily: fonts.dmSansSemiBold,
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '600',
     color: colors.text,
+    marginBottom: 12,
   },
-  phoneInput: {
-    flex: 1,
-    backgroundColor: colors.cardElevated,
-    borderWidth: 1,
-    borderColor: colors.borderEmphasis,
-    borderRadius: 14,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontFamily: fonts.syne,
-    fontSize: 20,
-    fontWeight: '800',
-    color: colors.text,
-    letterSpacing: 1.5,
+  emailInputError: {
+    borderColor: colors.danger,
   },
   error: {
     fontFamily: fonts.dmSans,
@@ -189,7 +169,7 @@ const styles = StyleSheet.create({
     height: 54,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 8,
+    marginTop: 4,
     shadowColor: colors.accent,
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.28,

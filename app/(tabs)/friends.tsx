@@ -9,6 +9,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, avatarColors } from '@/constants/colors';
 import { fonts } from '@/constants/typography';
+import { APP_NAME } from '@/constants/app';
 import { initialsFromName } from '@/constants/dateFormat';
 import { useUserStore } from '@/store/useUserStore';
 import { useFriends, useRemoveFriend } from '@/hooks/useFriends';
@@ -356,11 +357,11 @@ export default function FriendsScreen() {
   const handleShare = useCallback(async () => {
     if (!inviteCode) return;
     await Share.share({
-      title: 'Add me on SplitNow',
+      title: `Add me on ${APP_NAME}`,
       message:
-        `Hey! I use SplitNow to split expenses.\n\n` +
+        `Hey! I use ${APP_NAME} to split expenses.\n\n` +
         `Add me as a friend:\n\n` +
-        `1. Open SplitNow\n` +
+        `1. Open ${APP_NAME}\n` +
         `2. Go to Friends tab\n` +
         `3. Tap "Add a friend" and enter my code:\n\n` +
         `  ${formatInviteCode(inviteCode)}\n`,
