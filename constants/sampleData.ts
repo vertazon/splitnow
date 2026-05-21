@@ -148,7 +148,7 @@ export const insightsData = {
   mostWithCount: 6,
   avgDay: 214,
   byCategory: [
-    { label: '🍛 Food',       amount: 1840, pct: 1.00,  color: '#00D49A' },
+    { label: '🍛 Food',       amount: 1840, pct: 1.00,  color: '#00D6A0' },
     { label: '🛒 Groceries',  amount: 1120, pct: 0.609, color: '#5B9FFF' },
     { label: '⚡ Bills',       amount: 780,  pct: 0.424, color: '#FF9A3C' },
     { label: '🚗 Travel',     amount: 540,  pct: 0.293, color: '#A87CFF' },
