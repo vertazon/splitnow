@@ -7,3 +7,7 @@
  * The slug and bundle ID should NOT change after the first store submission.
  */
 export const APP_NAME = 'SplitNow';
+export const CONTACT_EMAIL = 'hello@vertazon.com';
+export const WEBSITE_URL   = 'https://splitnow.vertazon.com';
+export const PRIVACY_URL   = 'https://splitnow.vertazon.com/privacy';
+export const TERMS_URL     = 'https://splitnow.vertazon.com/terms';

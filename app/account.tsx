@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   ScrollView,
   Alert,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -18,6 +19,7 @@ import { signOut } from '@/hooks/useAuth';
 import { useUserStore } from '@/store/useUserStore';
 import { supabase } from '@/lib/supabase';
 import type { AvatarColor } from '@/types/database';
+import { CONTACT_EMAIL, PRIVACY_URL, TERMS_URL } from '@/constants/app';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -104,7 +106,7 @@ export default function AccountScreen() {
   const handleSignOut = useCallback(() => {
     Alert.alert(
       'Sign out',
-      "You'll need to verify your phone number to sign back in.",
+      "You'll need to verify your email to sign back in.",
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -200,6 +202,29 @@ export default function AccountScreen() {
             label="Notifications"
             sub="Push alerts & activity preferences"
             onPress={() => router.push('/notification-settings' as never)}
+          />
+        </View>
+
+        {/* ── Support section ── */}
+        <SectionLabel label="SUPPORT" />
+        <View style={styles.menuCard}>
+          <MenuItem
+            icon="mail-outline"
+            label="Contact us"
+            sub={CONTACT_EMAIL}
+            onPress={() => Linking.openURL(`mailto:${CONTACT_EMAIL}`)}
+          />
+          <Divider />
+          <MenuItem
+            icon="shield-checkmark-outline"
+            label="Privacy Policy"
+            onPress={() => Linking.openURL(PRIVACY_URL)}
+          />
+          <Divider />
+          <MenuItem
+            icon="document-text-outline"
+            label="Terms of Service"
+            onPress={() => Linking.openURL(TERMS_URL)}
           />
         </View>
 

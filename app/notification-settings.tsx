@@ -7,15 +7,16 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import * as Notifications from 'expo-notifications';
 import { colors } from '@/constants/colors';
 import { fonts } from '@/constants/typography';
 import { supabase } from '@/lib/supabase';
 import { useUserStore } from '@/store/useUserStore';
-import { DEV_USER_ID } from '@/lib/auth';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -46,15 +47,22 @@ const PREF_LABELS: Array<{ key: PrefKey; label: string; sub: string }> = [
 
 export default function NotificationSettingsScreen() {
   const router        = useRouter();
-  const currentUserId = useUserStore(s => s.currentUserId) ?? DEV_USER_ID;
+  const currentUserId = useUserStore(s => s.currentUserId);
 
-  const [prefs, setPrefs]       = useState<Prefs>(DEFAULT_PREFS);
-  const [loading, setLoading]   = useState(true);
-  const [saving, setSaving]     = useState(false);
+  const [prefs, setPrefs]                 = useState<Prefs>(DEFAULT_PREFS);
+  const [loading, setLoading]             = useState(true);
+  const [saving, setSaving]               = useState(false);
+  const [permissionStatus, setPermStatus] = useState<string | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Fetch current prefs on mount
+  // Check push permission on mount
   useEffect(() => {
+    Notifications.getPermissionsAsync().then(({ status }) => setPermStatus(status));
+  }, []);
+
+  // Fetch current prefs on mount — guard: do nothing if not signed in
+  useEffect(() => {
+    if (!currentUserId) { setLoading(false); return; }
     supabase
       .from('users')
       .select('notification_prefs')
@@ -70,6 +78,7 @@ export default function NotificationSettingsScreen() {
 
   // Debounced save — fires 600ms after the last toggle
   const savePrefs = useCallback((next: Prefs) => {
+    if (!currentUserId) return;
     if (saveTimer.current) clearTimeout(saveTimer.current);
     setSaving(true);
     saveTimer.current = setTimeout(async () => {
@@ -111,6 +120,26 @@ export default function NotificationSettingsScreen() {
           <ActivityIndicator color={colors.accent} style={{ marginTop: 40 }} />
         ) : (
           <>
+            {/* ── Permission banner ── */}
+            {permissionStatus !== null && permissionStatus !== 'granted' && (
+              <View style={styles.permBanner}>
+                <Ionicons name="notifications-off-outline" size={20} color={colors.orange} />
+                <View style={styles.permText}>
+                  <Text style={styles.permTitle}>Notifications are off</Text>
+                  <Text style={styles.permSub}>
+                    Enable them in Settings so SplitNow can alert you.
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.permBtn}
+                  onPress={() => Linking.openSettings()}
+                  activeOpacity={0.75}
+                >
+                  <Text style={styles.permBtnLabel}>Open Settings</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
             <Text style={styles.sectionLabel}>NOTIFY ME WHEN</Text>
             <View style={styles.card}>
               {PREF_LABELS.map((item, i) => (
@@ -224,5 +253,44 @@ const styles = StyleSheet.create({
     marginTop: 20,
     lineHeight: 18,
     paddingHorizontal: 8,
+  },
+
+  // Permission banner
+  permBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: 'rgba(255,154,60,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,154,60,0.22)',
+    borderRadius: 16,
+    padding: 14,
+    marginTop: 16,
+    marginBottom: 4,
+  },
+  permText: { flex: 1, gap: 2 },
+  permTitle: {
+    fontFamily: fonts.dmSansSemiBold,
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.orange,
+  },
+  permSub: {
+    fontFamily: fonts.dmSans,
+    fontSize: 12,
+    color: colors.text2,
+    lineHeight: 17,
+  },
+  permBtn: {
+    backgroundColor: colors.orange,
+    borderRadius: 10,
+    paddingHorizontal: 11,
+    paddingVertical: 7,
+  },
+  permBtnLabel: {
+    fontFamily: fonts.dmSansSemiBold,
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#000',
   },
 });
