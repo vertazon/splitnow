@@ -17,6 +17,7 @@ import { fonts } from '@/constants/typography';
 import { initialsFromName } from '@/constants/dateFormat';
 import { signOut } from '@/hooks/useAuth';
 import { useUserStore } from '@/store/useUserStore';
+import { useDeleteAccount } from '@/hooks/useDeleteAccount';
 import { supabase } from '@/lib/supabase';
 import type { AvatarColor } from '@/types/database';
 import { CONTACT_EMAIL, PRIVACY_URL, TERMS_URL } from '@/constants/app';
@@ -102,6 +103,8 @@ export default function AccountScreen() {
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setAuthEmail(data.user?.email ?? null));
   }, []);
+
+  const { deleteAccount } = useDeleteAccount();
 
   const handleSignOut = useCallback(() => {
     Alert.alert(
@@ -229,11 +232,24 @@ export default function AccountScreen() {
         </View>
 
         {/* ── Sign out ── */}
-        <View style={[styles.menuCard, styles.menuCardLast]}>
+        <View style={styles.menuCard}>
           <MenuItem
             icon="log-out-outline"
             label="Sign out"
             onPress={handleSignOut}
+            danger
+            hideCaret
+          />
+        </View>
+
+        {/* ── Danger zone ── */}
+        <SectionLabel label="DANGER ZONE" />
+        <View style={[styles.menuCard, styles.menuCardLast]}>
+          <MenuItem
+            icon="trash-outline"
+            label="Delete account"
+            sub="30-day recovery window after deletion"
+            onPress={deleteAccount}
             danger
             hideCaret
           />

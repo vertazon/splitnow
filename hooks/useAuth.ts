@@ -6,6 +6,7 @@
  * `useUserStore` in sync for the rest of the app.
  */
 import { useEffect } from 'react';
+import { Alert } from 'react-native';
 import { supabase } from '@/lib/supabase';
 import { useUserStore } from '@/store/useUserStore';
 import { useGroupStore } from '@/store/useGroupStore';
@@ -37,6 +38,63 @@ async function fetchProfile(userId: string): Promise<User | null> {
     return null;
   }
   return data as User | null;
+}
+
+/**
+ * Handle sign-in for a soft-deleted account.
+ *
+ * Returns true  → account was recovered, proceed with normal sign-in flow.
+ * Returns false → user declined recovery (or grace period expired); caller
+ *                 should sign out.
+ *
+ * The AuthGuard stays blocked (isLoading = true) for the entire duration
+ * because this is called before setLoading(false) in the SIGNED_IN handler.
+ */
+async function handleDeletedAccount(userId: string, profile: User): Promise<boolean> {
+  const deletedDate  = new Date(profile.deleted_at!);
+  const daysSince    = Math.floor((Date.now() - deletedDate.getTime()) / (1000 * 60 * 60 * 24));
+  const daysLeft     = Math.max(0, 30 - daysSince);
+  const isPermanent  = !!profile.anonymized_at || daysSince >= 30;
+
+  if (isPermanent) {
+    await new Promise<void>(resolve =>
+      Alert.alert(
+        'Account deleted',
+        'This account has been permanently deleted and cannot be recovered.',
+        [{ text: 'OK', onPress: resolve }],
+      ),
+    );
+    return false;
+  }
+
+  return new Promise(resolve => {
+    Alert.alert(
+      'Recover your account?',
+      `Your account "${profile.name}" is scheduled for deletion.\n\nYou have ${daysLeft} day${daysLeft === 1 ? '' : 's'} left to recover it.`,
+      [
+        {
+          text: 'Delete permanently',
+          style: 'destructive',
+          onPress: () => resolve(false),
+        },
+        {
+          text: 'Recover account',
+          onPress: async () => {
+            const { error } = await supabase
+              .from('users')
+              .update({ deleted_at: null })
+              .eq('id', userId);
+            if (error) {
+              Alert.alert('Recovery failed', 'Could not restore your account. Please try again.');
+              resolve(false);
+            } else {
+              resolve(true);
+            }
+          },
+        },
+      ],
+    );
+  });
 }
 
 /**
@@ -136,6 +194,31 @@ export function useAuthInit() {
             setLoading(true);
             setCurrentUserId(session.user.id);
             const profile = await fetchProfile(session.user.id);
+
+            // ── Soft-delete recovery check ──────────────────────────────────
+            // If the account has been marked for deletion, intercept before
+            // routing. AuthGuard stays blocked (isLoading=true) until resolved.
+            if (profile?.deleted_at) {
+              const recovered = await handleDeletedAccount(session.user.id, profile);
+              if (!recovered) {
+                // User declined or grace period expired — sign out.
+                // The SIGNED_OUT event will call clearSession() + setLoading(false).
+                await supabase.auth.signOut();
+                return;
+              }
+              // Re-fetch after recovery so deleted_at is cleared in the store.
+              const freshProfile = await fetchProfile(session.user.id);
+              if (freshProfile) {
+                setCurrentUser(freshProfile);
+                if (freshProfile.name) {
+                  await fetchOrCreateUserGroup(session.user.id, freshProfile.name);
+                }
+              }
+              setLoading(false);
+              return;
+            }
+            // ────────────────────────────────────────────────────────────────
+
             // Same guard: don't call setCurrentUser(null) for new users who
             // haven't completed profile setup yet — it would wipe currentUserId.
             if (profile) {

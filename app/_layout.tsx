@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Platform, View } from 'react-native';
+import { Platform, View, Text, Image, StyleSheet } from 'react-native';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import * as Notifications from 'expo-notifications';
 import { StatusBar } from 'expo-status-bar';
@@ -17,6 +17,9 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from '@/lib/queryClient';
 import { useAuthInit } from '@/hooks/useAuth';
 import { useUserStore } from '@/store/useUserStore';
+import { colors } from '@/constants/colors';
+import { fonts } from '@/constants/typography';
+import { APP_NAME } from '@/constants/app';
 import { usePendingInvite } from '@/store/usePendingInvite';
 import {
   registerForPushNotificationsAsync,
@@ -25,6 +28,34 @@ import {
 } from '@/lib/notifications';
 
 SplashScreen.preventAutoHideAsync();
+
+const loadingStyles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colors.bg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 20,
+  },
+  icon: {
+    width: 96,
+    height: 96,
+    borderRadius: 22,
+  },
+  wordmark: {
+    fontFamily: fonts.syne,
+    fontSize: 34,
+    fontWeight: '800',
+    color: colors.accent,
+    letterSpacing: -0.5,
+  },
+  wordmarkFallback: {
+    fontSize: 34,
+    fontWeight: '800',
+    color: '#00D6A0',
+    letterSpacing: -0.5,
+  },
+});
 
 // ─── Auth guard ───────────────────────────────────────────────────────────────
 // Reads from useUserStore (populated by useAuthInit) and redirects:
@@ -153,17 +184,28 @@ export default function RootLayout() {
 
   const isAuthLoading = useUserStore(s => s.isLoading);
 
+  // Hide native splash as soon as fonts are ready — the branded loading view
+  // below takes over for the auth-resolving period.
   useEffect(() => {
-    if (fontsLoaded && !isAuthLoading) {
-      SplashScreen.hideAsync();
-    }
-  }, [fontsLoaded, isAuthLoading]);
+    if (fontsLoaded) SplashScreen.hideAsync();
+  }, [fontsLoaded]);
 
-  // Keep the splash screen visible while fonts or session are loading.
-  // Return a dark view (not null) so that if isLoading briefly becomes true
-  // again after the splash is dismissed (e.g. during OTP sign-in profile fetch),
-  // the user sees the app background instead of a white screen.
-  if (!fontsLoaded || isAuthLoading) return <View style={{ flex: 1, backgroundColor: '#0D0D0D' }} />;
+  // Fonts still loading — block the route from bleeding through.
+  if (!fontsLoaded) return <View style={{ flex: 1, backgroundColor: '#0D0D0D' }} />;
+
+  // Fonts ready but auth session still resolving — show branded loading view.
+  if (isAuthLoading) {
+    return (
+      <View style={loadingStyles.container}>
+        <Image
+          source={require('@/assets/images/icon.png')}
+          style={loadingStyles.icon}
+          resizeMode="contain"
+        />
+        <Text style={loadingStyles.wordmark}>{APP_NAME}</Text>
+      </View>
+    );
+  }
 
   return (
     <QueryClientProvider client={queryClient}>

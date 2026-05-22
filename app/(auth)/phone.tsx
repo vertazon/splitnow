@@ -2,13 +2,13 @@ import { useState, useRef } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
   StyleSheet, KeyboardAvoidingView, Platform,
-  ScrollView, ActivityIndicator, Image,
+  ScrollView, ActivityIndicator, Image, Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { colors } from '@/constants/colors';
 import { fonts } from '@/constants/typography';
-import { APP_NAME } from '@/constants/app';
+import { APP_NAME, PRIVACY_URL, TERMS_URL } from '@/constants/app';
 import { sendEmailOtp } from '@/hooks/useAuth';
 
 export default function EmailScreen() {
@@ -95,8 +95,9 @@ export default function EmailScreen() {
           {/* Legal */}
           <Text style={styles.legal}>
             By continuing you agree to our{' '}
-            <Text style={styles.legalLink}>Terms</Text> &{' '}
-            <Text style={styles.legalLink}>Privacy Policy</Text>.
+            <Text style={styles.legalLink} onPress={() => Linking.openURL(TERMS_URL)}>Terms</Text>
+            {' '}&{' '}
+            <Text style={styles.legalLink} onPress={() => Linking.openURL(PRIVACY_URL)}>Privacy Policy</Text>.
           </Text>
         </ScrollView>
       </KeyboardAvoidingView>
