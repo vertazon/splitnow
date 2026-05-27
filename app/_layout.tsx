@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Platform, View, Text, Image, StyleSheet } from 'react-native';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import * as Notifications from 'expo-notifications';
@@ -26,6 +26,8 @@ import {
   upsertPushToken,
   handleNotificationTap,
 } from '@/lib/notifications';
+import { useForceUpdate } from '@/hooks/useForceUpdate';
+import { UpdateModal } from '@/components/UpdateModal';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -168,6 +170,26 @@ function PushNotificationSetup() {
   return null;
 }
 
+// ─── Update gate ──────────────────────────────────────────────────────────────
+// Checks app_config on mount and shows a blocking or dismissible update modal.
+
+function UpdateGate() {
+  const updateState = useForceUpdate();
+  const [dismissed, setDismissed] = useState(false);
+
+  if (updateState.status === 'idle' || dismissed) return null;
+
+  return (
+    <UpdateModal
+      visible
+      force={updateState.status === 'force'}
+      message={updateState.message}
+      storeUrl={updateState.storeUrl}
+      onDismiss={() => setDismissed(true)}
+    />
+  );
+}
+
 // ─── Root layout ──────────────────────────────────────────────────────────────
 
 export default function RootLayout() {
@@ -210,6 +232,7 @@ export default function RootLayout() {
   return (
     <QueryClientProvider client={queryClient}>
       <StatusBar style="light" backgroundColor="#0D0D0D" />
+      <UpdateGate />
       <DeepLinkCapture />
       <AuthGuard />
       <PendingInviteProcessor />

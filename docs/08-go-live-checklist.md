@@ -13,9 +13,10 @@ Everything required to get SplitNow approved and published on Google Play and th
 | Activity feed | ✅ Done | Realtime + fan-out pattern |
 | Notification settings | ✅ Done | Per-type toggles saved to `users.notification_prefs` |
 | Email OTP auth | ✅ Code done | `sendEmailOtp` + `verifyEmailOtp` via Supabase built-in |
-| Supabase Email provider | ❌ Enable in dashboard | Authentication → Providers → Email → enable, OTP mode |
-| Privacy Policy page | ❌ Missing | Must be a live public URL |
-| App name | ⚠️ TBD | "SplitNow" is a placeholder — see hardcoded references below |
+| Supabase Email provider | ✅ Done | Authentication → Providers → Email → enabled, OTP mode |
+| Privacy Policy page | ✅ Done | Live public URL configured |
+| App name | ✅ Done | Finalized as "SplitNow" |
+| Force update | ✅ Done | `app_config` table + `useForceUpdate` hook + `UpdateModal` — control via Supabase dashboard |
 | App icon | ❌ Needs custom artwork | Current 💸 emoji will be rejected by Apple — see risk below |
 | Empty states | ⚠️ Partial | Verify all screens with zero data |
 | Production build | ❌ Not built | Need `eas build --profile production` |

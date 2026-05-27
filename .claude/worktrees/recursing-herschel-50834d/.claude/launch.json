@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "splitnow-web",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "D:\\splitnow-web", "run", "dev"],
+      "port": 3000,
+      "autoPort": true
+    }
+  ]
+}
