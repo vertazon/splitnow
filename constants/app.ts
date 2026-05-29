@@ -11,3 +11,8 @@ export const CONTACT_EMAIL = 'hello@vertazon.com';
 export const WEBSITE_URL   = 'https://splitnow.vertazon.com';
 export const PRIVACY_URL   = 'https://splitnow.vertazon.com/privacy';
 export const TERMS_URL     = 'https://splitnow.vertazon.com/terms';
+
+// OneSignal — App ID is not a secret (it's embedded in the app binary)
+// OneSignal — App ID is not a secret (embedded in the app binary, safe to commit)
+// Get this from: OneSignal dashboard → Settings → Keys & IDs
+export const ONESIGNAL_APP_ID = '43cc1733-c4ca-49ef-99db-10d7b825d147';

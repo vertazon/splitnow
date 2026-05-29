@@ -12,7 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import * as Notifications from 'expo-notifications';
+import { OneSignal } from 'react-native-onesignal';
 import { colors } from '@/constants/colors';
 import { fonts } from '@/constants/typography';
 import { supabase } from '@/lib/supabase';
@@ -52,12 +52,12 @@ export default function NotificationSettingsScreen() {
   const [prefs, setPrefs]                 = useState<Prefs>(DEFAULT_PREFS);
   const [loading, setLoading]             = useState(true);
   const [saving, setSaving]               = useState(false);
-  const [permissionStatus, setPermStatus] = useState<string | null>(null);
+  const [permissionGranted, setPermGranted] = useState<boolean | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Check push permission on mount
   useEffect(() => {
-    Notifications.getPermissionsAsync().then(({ status }) => setPermStatus(status));
+    OneSignal.Notifications.getPermissionAsync().then(setPermGranted);
   }, []);
 
   // Fetch current prefs on mount — guard: do nothing if not signed in
@@ -121,7 +121,7 @@ export default function NotificationSettingsScreen() {
         ) : (
           <>
             {/* ── Permission banner ── */}
-            {permissionStatus !== null && permissionStatus !== 'granted' && (
+            {permissionGranted === false && (
               <View style={styles.permBanner}>
                 <Ionicons name="notifications-off-outline" size={20} color={colors.orange} />
                 <View style={styles.permText}>

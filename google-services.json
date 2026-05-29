@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "289029097990",
+    "project_id": "splitnow-a4c07",
+    "storage_bucket": "splitnow-a4c07.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:289029097990:android:b843d13d3b2920a3345187",
+        "android_client_info": {
+          "package_name": "com.himanshurelhan.SplitNow"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDawyPoLEH1OcVJvwduztPWLwe8dw0LrTo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

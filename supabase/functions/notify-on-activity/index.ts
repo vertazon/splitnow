@@ -1,11 +1,16 @@
 // Supabase Edge Function: notify-on-activity
 // Triggered by a DB webhook on activity INSERT.
-// Fetches the recipient's push token and sends via Expo Push API.
+// Sends push notifications via OneSignal REST API, targeting users by external_id
+// (which equals their Supabase user UUID set via OneSignal.login() in the app).
 //
 // Webhook setup (Supabase dashboard → Database → Webhooks):
 //   Table: activity  |  Event: INSERT
 //   POST → https://<project-ref>.supabase.co/functions/v1/notify-on-activity
 //   Headers: Authorization: Bearer <service_role_key>
+//
+// Required secrets (Supabase dashboard → Edge Functions → Secrets):
+//   ONESIGNAL_APP_ID       — from OneSignal dashboard → Settings → Keys & IDs
+//   ONESIGNAL_REST_API_KEY — from OneSignal dashboard → Settings → Keys & IDs
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
@@ -14,7 +19,9 @@ const supabase = createClient(
   Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
 );
 
-const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
+const ONESIGNAL_APP_ID       = Deno.env.get('ONESIGNAL_APP_ID')!;
+const ONESIGNAL_REST_API_KEY = Deno.env.get('ONESIGNAL_REST_API_KEY')!;
+const ONESIGNAL_URL          = 'https://onesignal.com/api/v1/notifications';
 
 interface ActivityRecord {
   id:         string;
@@ -30,7 +37,7 @@ interface ActivityRecord {
 }
 
 function buildPayload(record: ActivityRecord): { title: string; body: string } {
-  const meta = record.meta ?? {};
+  const meta      = record.meta ?? {};
   const actorName = (meta.actor_name as string) ?? 'Someone';
 
   switch (record.type) {
@@ -62,13 +69,13 @@ function buildPayload(record: ActivityRecord): { title: string; body: string } {
         body:  String(meta.comment_text ?? ''),
       };
     default:
-      return { title: 'SplitNow', body: 'You have a new notification' }; // APP_NAME — update when name is finalised
+      return { title: 'SplitNow', body: 'You have a new notification' };
   }
 }
 
 Deno.serve(async (req) => {
   try {
-    const body = await req.json();
+    const body   = await req.json();
     const record: ActivityRecord = body.record ?? body;
 
     // Skip self-actions — actor shouldn't get push for their own events
@@ -84,34 +91,25 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     const prefs = (userRow?.notification_prefs ?? {}) as Record<string, boolean>;
-    // If the preference key exists and is explicitly false, skip
     if (record.type in prefs && prefs[record.type] === false) {
       return new Response('muted', { status: 200 });
     }
 
-    // Fetch push token for the recipient
-    const { data: tokenRow, error: tokenErr } = await supabase
-      .from('push_tokens')
-      .select('token')
-      .eq('user_id', record.user_id)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (tokenErr || !tokenRow?.token) {
-      return new Response('no token', { status: 200 });
-    }
-
     const { title, body: msgBody } = buildPayload(record);
 
-    const pushRes = await fetch(EXPO_PUSH_URL, {
+    // Send via OneSignal — target by external_id (= Supabase user UUID)
+    const res = await fetch(ONESIGNAL_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      headers: {
+        'Content-Type':  'application/json',
+        'Authorization': `Basic ${ONESIGNAL_REST_API_KEY}`,
+      },
       body: JSON.stringify({
-        to:    tokenRow.token,
-        title,
-        body:  msgBody,
-        sound: 'default',
+        app_id:           ONESIGNAL_APP_ID,
+        include_aliases:  { external_id: [record.user_id] },
+        target_channel:   'push',
+        headings:         { en: title },
+        contents:         { en: msgBody },
         data: {
           ref_type: record.ref_type,
           ref_id:   record.ref_id,
@@ -120,9 +118,9 @@ Deno.serve(async (req) => {
       }),
     });
 
-    if (!pushRes.ok) {
-      const text = await pushRes.text();
-      console.error('[push] Expo API error:', text);
+    if (!res.ok) {
+      const text = await res.text();
+      console.error('[push] OneSignal API error:', text);
     }
 
     return new Response('ok', { status: 200 });

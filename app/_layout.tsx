@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { Platform, View, Text, Image, StyleSheet } from 'react-native';
+import { View, Text, Image, StyleSheet } from 'react-native';
 import { Stack, useRouter, useSegments } from 'expo-router';
-import * as Notifications from 'expo-notifications';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import * as Linking from 'expo-linking';
@@ -21,11 +20,8 @@ import { colors } from '@/constants/colors';
 import { fonts } from '@/constants/typography';
 import { APP_NAME } from '@/constants/app';
 import { usePendingInvite } from '@/store/usePendingInvite';
-import {
-  registerForPushNotificationsAsync,
-  upsertPushToken,
-  handleNotificationTap,
-} from '@/lib/notifications';
+import { initOneSignal, loginOneSignal, logoutOneSignal } from '@/lib/notifications';
+import { OneSignal } from 'react-native-onesignal';
 import { useForceUpdate } from '@/hooks/useForceUpdate';
 import { UpdateModal } from '@/components/UpdateModal';
 
@@ -140,31 +136,52 @@ function PendingInviteProcessor() {
 }
 
 // ─── Push notification setup ──────────────────────────────────────────────────
-// Registers for push once the user is authenticated and wires the tap handler.
+// Initialises OneSignal once, then logs in/out as auth state changes.
 
 function PushNotificationSetup() {
   const router        = useRouter();
   const currentUserId = useUserStore(s => s.currentUserId);
-  const tapListenerRef = useRef<Notifications.EventSubscription | null>(null);
+  const initialized   = useRef(false);
 
+  // One-time init — runs on first mount only
   useEffect(() => {
-    if (!currentUserId) return;
+    if (initialized.current) return;
+    initialized.current = true;
 
-    // Register token
-    registerForPushNotificationsAsync().then(token => {
-      if (token) {
-        upsertPushToken(currentUserId, token, Platform.OS as 'ios' | 'android');
-      }
+    initOneSignal();
+    OneSignal.Notifications.requestPermission(true);
+
+    // Show notification while app is in foreground
+    OneSignal.Notifications.addEventListener('foregroundWillDisplay', (event) => {
+      event.getNotification().display();
     });
 
-    // Tap listener — fires when user taps a notification while app is backgrounded/closed
-    tapListenerRef.current = Notifications.addNotificationResponseReceivedListener(
-      response => handleNotificationTap(response, router),
-    );
+    // Handle notification tap → navigate to the right screen
+    OneSignal.Notifications.addEventListener('click', (event) => {
+      const data = (event.notification.additionalData ?? {}) as Record<string, any>;
+      switch (data.ref_type) {
+        case 'expense':
+          if (data.ref_id) router.push(`/expense/${data.ref_id}` as never);
+          break;
+        case 'settlement':
+          router.push('/(tabs)/settle' as never);
+          break;
+        case 'comment':
+          if (data.ref_id) router.push(`/expense/${data.ref_id}` as never);
+          break;
+        default:
+          router.push('/activity' as never);
+      }
+    });
+  }, []);
 
-    return () => {
-      tapListenerRef.current?.remove();
-    };
+  // Login with Supabase user ID as external ID so Edge Function can target by user
+  useEffect(() => {
+    if (currentUserId) {
+      loginOneSignal(currentUserId);
+    } else {
+      logoutOneSignal();
+    }
   }, [currentUserId]);
 
   return null;

@@ -6,7 +6,15 @@
       "Bash(npx expo *)",
       "Bash(npx ngrok *)",
       "Bash(git rm *)",
-      "Bash(git stash *)"
+      "Bash(git stash *)",
+      "PowerShell([System.Environment]::SetEnvironmentVariable\\(\"JAVA_HOME\", \"C:\\\\Program Files\\\\Android\\\\Android Studio\\\\jbr\", \"User\"\\))",
+      "PowerShell($env:JAVA_HOME = \"C:\\\\Program Files\\\\Android\\\\Android Studio\\\\jbr\"; cd D:\\\\SplitNow; npx expo prebuild --clean --platform android 2>&1 | Select-Object -Last 40)",
+      "PowerShell(\\(Get-ChildItem \"D:\\\\SplitNow\\\\node_modules\\\\react-native-onesignal\" -Force -Recurse | Measure-Object\\).Count)",
+      "Bash(C:\\\\Users\\\\himan\\\\AppData\\\\Local\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe devices *)",
+      "Bash(C:\\\\Users\\\\himan\\\\AppData\\\\Local\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe reverse *)",
+      "PowerShell($adb = \"C:\\\\Users\\\\himan\\\\AppData\\\\Local\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\"; & $adb devices; & $adb reverse tcp:8081 tcp:8081; if \\($?\\) { \"reverse tunnel set\" })",
+      "Bash(yarn install *)",
+      "Bash(echo \"=== exit: $? ===\")"
     ]
   }
 }
