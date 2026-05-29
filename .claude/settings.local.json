@@ -14,7 +14,12 @@
       "Bash(C:\\\\Users\\\\himan\\\\AppData\\\\Local\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe reverse *)",
       "PowerShell($adb = \"C:\\\\Users\\\\himan\\\\AppData\\\\Local\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\"; & $adb devices; & $adb reverse tcp:8081 tcp:8081; if \\($?\\) { \"reverse tunnel set\" })",
       "Bash(yarn install *)",
-      "Bash(echo \"=== exit: $? ===\")"
+      "Bash(echo \"=== exit: $? ===\")",
+      "Bash(powershell -Command \"Get-ChildItem 'D:\\\\SplitNow\\\\assets\\\\images' | Select-Object Name,Length\")",
+      "Bash(node -e \"const fs=require\\('fs'\\);for\\(const f of ['icon.png','android-icon-foreground.png','android-icon-background.png','android-icon-monochrome.png']\\){const b=fs.readFileSync\\('assets/images/'+f\\);const w=b.readUInt32BE\\(16\\),h=b.readUInt32BE\\(20\\);const alpha=b[25]===6||b[25]===4;console.log\\(f.padEnd\\(34\\),w+'x'+h,'colorType='+b[25],alpha?'\\(has alpha\\)':'\\(no alpha\\)'\\)}\")",
+      "Bash(node -e ' *)",
+      "Bash(eas build *)",
+      "Bash(eas env:list production)"
     ]
   }
 }

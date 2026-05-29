@@ -9,7 +9,7 @@ Everything required to get SplitNow approved and published on Google Play and th
 | Feature | Status | Notes |
 |---|---|---|
 | Delete account (in-app) | ✅ Done | `supabase.rpc('delete_my_account')` in `app/account.tsx` |
-| Push notifications | ✅ Done | Expo + Edge Function + DB webhook |
+| Push notifications | ✅ Done | OneSignal SDK + Edge Function + DB webhook — verified end-to-end on device |
 | Activity feed | ✅ Done | Realtime + fan-out pattern |
 | Notification settings | ✅ Done | Per-type toggles saved to `users.notification_prefs` |
 | Email OTP auth | ✅ Code done | `sendEmailOtp` + `verifyEmailOtp` via Supabase built-in |
@@ -17,9 +17,11 @@ Everything required to get SplitNow approved and published on Google Play and th
 | Privacy Policy page | ✅ Done | Live public URL configured |
 | App name | ✅ Done | Finalized as "SplitNow" |
 | Force update | ✅ Done | `app_config` table + `useForceUpdate` hook + `UpdateModal` — control via Supabase dashboard |
-| App icon | ❌ Needs custom artwork | Current 💸 emoji will be rejected by Apple — see risk below |
-| Empty states | ⚠️ Partial | Verify all screens with zero data |
-| Production build | ❌ Not built | Need `eas build --profile production` |
+| App icon | ✅ Done | Custom R+₹ mark (1024×1024, opaque). iOS icon + Android adaptive layers wired. ₹ symbol may draw extra payment-policy review (not a rejection) |
+| Empty states | ✅ Done | Audited Home, Insights, Friends, Groups, Activity — all handle zero data with loading guards + empty-state copy |
+| Production build | 🔄 Android building | AAB build versionCode 3 (`fbecdf8c`) — now with Supabase env vars. **Points at DEV project (`zvgsoenhfwlfspxvkmff`) for test track.** Build 2 (`0b855d10`) was broken (empty creds). iOS pending Apple enrollment |
+| Supabase env (EAS) | ✅ Done (dev) | `EXPO_PUBLIC_SUPABASE_URL` + `ANON_KEY` set in EAS `production` environment, pointing at DEV. **Must repoint to Live (`afullpftwnvusgznhmvc`) before public launch** |
+| Live project migration | ⏳ Deferred | Live DB not yet set up. Plan: `supabase db dump` from dev → apply to Live + dashboard steps (email OTP, Edge Function, webhook, secrets) before production cutover |
 
 ---
 
@@ -85,15 +87,17 @@ The current icon uses the **💸 emoji**, which creates two rejection risks:
 - Test end-to-end on a real device: sign in with your email, receive the OTP, verify
 
 #### 4. No Crashes on Empty States
-- **Status:** ⚠️ Needs verification
+- **Status:** ✅ Done — audited 2026-05-29
 - App reviewer creates a fresh account — zero groups, zero friends, zero expenses
 - Every screen must handle empty data gracefully
 - Screens to verify: Home (no groups/expenses), Groups list (empty), Friends (no friends), Insights (no data), Activity (no activity)
 
 #### 5. App Icon — Custom Artwork
-- **Status:** ❌ Needs design
-- See "App Icon — Custom Artwork Required" section above
-- Expo generates all sizes from `assets/images/icon.png` (must be 1024×1024, no alpha for iOS)
+- **Status:** ✅ Done — verified 2026-05-29
+- Custom R+₹ mark in place (no longer the 💸 emoji)
+- `assets/images/icon.png` is 1024×1024, fully opaque (Expo strips the alpha channel for the iOS asset catalog)
+- Android adaptive icon wired: transparent foreground centered in safe zone + solid `#0D0D0D` background + monochrome layer
+- Remaining caveat: the ₹ symbol may draw extra review under payment-app policies (Apple 3.1.1 / Play Financial) — not a rejection
 
 #### 6. Age Rating / Content Declaration
 - SplitNow = **4+ / Everyone** (no violence, no adult content, no gambling)
@@ -273,9 +277,8 @@ Optional safety net — add a Supabase test OTP for a specific email (e.g. `revi
 
 ## Known Risks
 
-### 🔴 App Icon (Emoji)
-**Severity: Will cause rejection on App Store**  
-The current 💸 emoji used as the app icon does not meet Apple's human interface guidelines for distinctive app icons. Must be replaced with custom-designed artwork before App Store submission.
+### 🟢 App Icon — Resolved
+The 💸 emoji has been replaced with custom R+₹ artwork (1024×1024, opaque), wired for both iOS and Android adaptive icons. Apple Guideline 4.1.2 satisfied. Only residual: the ₹ currency symbol may attract extra payment-policy review — not a rejection. ✅
 
 ### 🟡 App Name Not Finalized
 **Severity: Operational risk, not a rejection risk**  
