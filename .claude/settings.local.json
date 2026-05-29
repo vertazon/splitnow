@@ -19,7 +19,8 @@
       "Bash(node -e \"const fs=require\\('fs'\\);for\\(const f of ['icon.png','android-icon-foreground.png','android-icon-background.png','android-icon-monochrome.png']\\){const b=fs.readFileSync\\('assets/images/'+f\\);const w=b.readUInt32BE\\(16\\),h=b.readUInt32BE\\(20\\);const alpha=b[25]===6||b[25]===4;console.log\\(f.padEnd\\(34\\),w+'x'+h,'colorType='+b[25],alpha?'\\(has alpha\\)':'\\(no alpha\\)'\\)}\")",
       "Bash(node -e ' *)",
       "Bash(eas build *)",
-      "Bash(eas env:list production)"
+      "Bash(eas env:list production)",
+      "Bash(eas build:list --platform android --limit 1 --non-interactive --json)"
     ]
   }
 }
