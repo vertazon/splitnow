@@ -8,6 +8,7 @@
 import { useEffect } from 'react';
 import { Alert } from 'react-native';
 import { supabase } from '@/lib/supabase';
+import { signOutGoogle } from '@/lib/googleAuth';
 import { useUserStore } from '@/store/useUserStore';
 import { useGroupStore } from '@/store/useGroupStore';
 import { queryClient } from '@/lib/queryClient';
@@ -354,6 +355,9 @@ export async function saveProfile(
 
 /** Sign out and clear all local state. */
 export async function signOut(): Promise<void> {
+  // Best-effort Google SDK sign-out so the next login re-prompts the account
+  // picker. No-op if the user signed in via email OTP.
+  await signOutGoogle();
   await supabase.auth.signOut();
   clearSession();
 }

@@ -20,7 +20,19 @@
       "Bash(node -e ' *)",
       "Bash(eas build *)",
       "Bash(eas env:list production)",
-      "Bash(eas build:list --platform android --limit 1 --non-interactive --json)"
+      "Bash(eas build:list --platform android --limit 1 --non-interactive --json)",
+      "WebSearch",
+      "Bash(supabase --version)",
+      "Bash(supabase projects *)",
+      "Bash(npx supabase *)",
+      "WebFetch(domain:supabase.com)",
+      "WebFetch(domain:github.com)",
+      "Bash(gh api *)",
+      "Bash(gh search *)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(eas env:create --environment production --name EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID --value \"289029097990-1f1unrrirc7kvad3gfu18rcem5rlmmoi.apps.googleusercontent.com\" --visibility plaintext --non-interactive)",
+      "Bash(git add *)",
+      "Bash(git commit -q -m ' *)"
     ]
   }
 }

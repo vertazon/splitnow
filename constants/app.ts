@@ -16,3 +16,10 @@ export const TERMS_URL     = 'https://splitnow.vertazon.com/terms';
 // OneSignal — App ID is not a secret (embedded in the app binary, safe to commit)
 // Get this from: OneSignal dashboard → Settings → Keys & IDs
 export const ONESIGNAL_APP_ID = '43cc1733-c4ca-49ef-99db-10d7b825d147';
+
+// Google Sign-In — the WEB OAuth client ID (NOT the Android one).
+// This sets the ID-token audience that Supabase validates, so it must match the
+// Web client registered in Supabase → Auth → Providers → Google.
+// Not a secret (it's embedded in the app binary). Set via EAS env var per environment.
+// Get this from: Google Cloud Console → APIs & Services → Credentials → Web client.
+export const GOOGLE_WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ?? '';

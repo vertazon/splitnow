@@ -41,7 +41,8 @@
             "backgroundColor": "#0D0D0D"
           }
         }
-      ]
+      ],
+      "@react-native-google-signin/google-signin"
     ],
     "experiments": {
       "typedRoutes": true,

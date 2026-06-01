@@ -5,11 +5,13 @@ import {
   ScrollView, ActivityIndicator, Image, Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { colors } from '@/constants/colors';
 import { fonts } from '@/constants/typography';
 import { APP_NAME, PRIVACY_URL, TERMS_URL } from '@/constants/app';
 import { sendEmailOtp } from '@/hooks/useAuth';
+import { signInWithGoogle } from '@/lib/googleAuth';
 
 export default function EmailScreen() {
   const router   = useRouter();
@@ -18,9 +20,27 @@ export default function EmailScreen() {
   const [email, setEmail]     = useState('');
   const [error, setError]     = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
 
   // Basic email validation
   const isValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+
+  // Google button is Android-only for now: offering Google login on iOS would
+  // require Sign in with Apple too (App Store Guideline 4.8).
+  const showGoogle = Platform.OS === 'android';
+
+  const handleGoogle = async () => {
+    if (googleLoading || loading) return;
+    setError(null);
+    setGoogleLoading(true);
+    const result = await signInWithGoogle();
+    setGoogleLoading(false);
+    // On success, onAuthStateChange (useAuthInit) drives navigation — nothing
+    // to do here. A user cancellation is silent. Only surface real errors.
+    if (!result.ok && !result.cancelled) {
+      setError(result.error);
+    }
+  };
 
   const handleSend = async () => {
     if (!isValid || loading) return;
@@ -91,6 +111,34 @@ export default function EmailScreen() {
               : <Text style={styles.ctaText}>Send OTP →</Text>
             }
           </TouchableOpacity>
+
+          {/* Google sign-in (Android only) */}
+          {showGoogle && (
+            <>
+              <View style={styles.dividerRow}>
+                <View style={styles.dividerLine} />
+                <Text style={styles.dividerText}>or</Text>
+                <View style={styles.dividerLine} />
+              </View>
+
+              <TouchableOpacity
+                style={[styles.googleBtn, googleLoading && styles.ctaDim]}
+                onPress={handleGoogle}
+                activeOpacity={0.85}
+                disabled={googleLoading || loading}
+              >
+                {googleLoading
+                  ? <ActivityIndicator color={colors.text} />
+                  : (
+                    <>
+                      <Ionicons name="logo-google" size={18} color={colors.text} />
+                      <Text style={styles.googleText}>Continue with Google</Text>
+                    </>
+                  )
+                }
+              </TouchableOpacity>
+            </>
+          )}
 
           {/* Legal */}
           <Text style={styles.legal}>
@@ -183,6 +231,40 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '800',
     color: '#000',
+  },
+  dividerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginTop: 20,
+    marginBottom: 16,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: colors.border,
+  },
+  dividerText: {
+    fontFamily: fonts.dmSans,
+    fontSize: 12,
+    color: colors.text3,
+  },
+  googleBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    backgroundColor: colors.cardElevated,
+    borderWidth: 1.5,
+    borderColor: colors.borderEmphasis,
+    borderRadius: 16,
+    height: 54,
+  },
+  googleText: {
+    fontFamily: fonts.dmSansSemiBold,
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.text,
   },
   legal: {
     fontFamily: fonts.dmSans,

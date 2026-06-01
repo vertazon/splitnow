@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
   StyleSheet, KeyboardAvoidingView, Platform,
@@ -8,6 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, avatarColors } from '@/constants/colors';
 import { fonts } from '@/constants/typography';
 import { saveProfile } from '@/hooks/useAuth';
+import { supabase } from '@/lib/supabase';
 import { useUserStore } from '@/store/useUserStore';
 import type { AvatarColor } from '@/types/database';
 
@@ -34,6 +35,24 @@ export default function ProfileScreen() {
   const [avatarColor, setAvatarColor] = useState<AvatarColor>('green');
   const [error, setError]           = useState<string | null>(null);
   const [loading, setLoading]       = useState(false);
+
+  // Pre-fill the name from Google profile metadata for new OAuth sign-ups, so
+  // they don't retype what Google already knows. Only seeds an empty field, so
+  // it never clobbers what the user is typing. Email-OTP users have no such
+  // metadata and simply start blank.
+  useEffect(() => {
+    let cancelled = false;
+    supabase.auth.getUser().then(({ data }) => {
+      if (cancelled) return;
+      const meta = data.user?.user_metadata ?? {};
+      const googleName: string =
+        meta.full_name ?? meta.name ?? meta.given_name ?? '';
+      if (googleName) {
+        setName(prev => (prev.trim() ? prev : googleName));
+      }
+    });
+    return () => { cancelled = true; };
+  }, []);
 
   const isValid = name.trim().length >= 2;
   const av = avatarColors[avatarColor];
