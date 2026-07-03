@@ -21,7 +21,9 @@ import { fonts } from '@/constants/typography';
 import { APP_NAME } from '@/constants/app';
 import { usePendingInvite } from '@/store/usePendingInvite';
 import { initOneSignal, loginOneSignal, logoutOneSignal } from '@/lib/notifications';
-import { OneSignal } from 'react-native-onesignal';
+
+let _OneSignal: any = null;
+try { _OneSignal = require('react-native-onesignal').OneSignal; } catch {}
 import { useForceUpdate } from '@/hooks/useForceUpdate';
 import { UpdateModal } from '@/components/UpdateModal';
 
@@ -149,15 +151,15 @@ function PushNotificationSetup() {
     initialized.current = true;
 
     initOneSignal();
-    OneSignal.Notifications.requestPermission(true);
+    _OneSignal?.Notifications.requestPermission(true);
 
     // Show notification while app is in foreground
-    OneSignal.Notifications.addEventListener('foregroundWillDisplay', (event) => {
+    _OneSignal?.Notifications.addEventListener('foregroundWillDisplay', (event: any) => {
       event.getNotification().display();
     });
 
     // Handle notification tap → navigate to the right screen
-    OneSignal.Notifications.addEventListener('click', (event) => {
+    _OneSignal?.Notifications.addEventListener('click', (event: any) => {
       const data = (event.notification.additionalData ?? {}) as Record<string, any>;
       switch (data.ref_type) {
         case 'expense':
