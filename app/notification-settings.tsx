@@ -12,7 +12,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { OneSignal } from 'react-native-onesignal';
+let _OneSignal: any = null;
+try { _OneSignal = require('react-native-onesignal').OneSignal; } catch {}
 import { colors } from '@/constants/colors';
 import { fonts } from '@/constants/typography';
 import { supabase } from '@/lib/supabase';
@@ -57,7 +58,7 @@ export default function NotificationSettingsScreen() {
 
   // Check push permission on mount
   useEffect(() => {
-    OneSignal.Notifications.getPermissionAsync().then(setPermGranted);
+    _OneSignal?.Notifications.getPermissionAsync().then(setPermGranted);
   }, []);
 
   // Fetch current prefs on mount — guard: do nothing if not signed in

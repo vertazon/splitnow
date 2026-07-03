@@ -12,11 +12,15 @@
  * Guideline 4.8) before we can expose Google there, so the button is gated to
  * Android in the UI.
  */
-import {
-  GoogleSignin,
-  statusCodes,
-  isErrorWithCode,
-} from '@react-native-google-signin/google-signin';
+let GoogleSignin: any = null;
+let statusCodes: any = {};
+let isErrorWithCode: (e: unknown) => boolean = () => false;
+try {
+  const m = require('@react-native-google-signin/google-signin');
+  GoogleSignin = m.GoogleSignin;
+  statusCodes = m.statusCodes;
+  isErrorWithCode = m.isErrorWithCode;
+} catch {}
 import { supabase } from '@/lib/supabase';
 import { GOOGLE_WEB_CLIENT_ID } from '@/constants/app';
 
@@ -24,7 +28,7 @@ let configured = false;
 
 /** Idempotent one-time configure. Safe to call before every sign-in attempt. */
 export function configureGoogleSignin() {
-  if (configured) return;
+  if (configured || !GoogleSignin) return;
   GoogleSignin.configure({
     // MUST be the WEB client ID — it sets the audience Supabase validates.
     webClientId: GOOGLE_WEB_CLIENT_ID,
